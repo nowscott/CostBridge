@@ -40,7 +40,8 @@ test('accepts the iCost shortcut text lists and supplies Shanghai current time',
  assert.match(converted.now,/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/);
 });
 
-test('preview includes key information and warnings', () => {
- const preview = buildPreview(normalize(transaction,input));
- assert.match(preview,/12\.50/); assert.match(preview,/餐饮/); assert.match(preview,/核对/);
+test('receipt shows the transaction and identifies a default account', () => {
+ const preview = buildPreview(normalize({...transaction,account:'未知'},input));
+ assert.match(preview,/12\.50/); assert.match(preview,/餐饮/); assert.match(preview,/信用卡（默认）/);
+ assert.doesNotMatch(preview,/⚠️|注意事项/);
 });

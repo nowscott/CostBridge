@@ -65,21 +65,22 @@ export function buildIcostUrl(transaction) {
 
 export function buildPreview(tx) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
-  const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
+  const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
+  const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
+    : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay')) ? '（规则）' : '';
   return [
-    `🧾  ${tx.type} · 确认录入`,
+    '🧾  记账小票',
     line,
     '',
-    `       CNY  ${amount}  💰`,
+    `       ${tx.type}  ${amount}`,
+    '              CNY',
     '',
     line,
-    `⏰ 时间  ｜  ${tx.date}`,
-    `💳 账户  ｜  ${tx.account}`,
-    `📂 分类  ｜  ${tx.category}`,
-    `📝 备注  ｜  ${tx.remark || '无'}`,
+    `⏰ 时间  ${tx.date}`,
+    `💳 账户  ${tx.account}${accountNote}`,
+    `📂 分类  ${tx.category}`,
+    `📝 备注  ${tx.remark || '无'}`,
     line,
-    ...tx.warnings.map(warning => `⚠️ ${warning}`),
-    '',
-    '💡 请核对以上信息，是否入账？'
+    '确认以上信息后入账？'
   ].join('\n');
 }
