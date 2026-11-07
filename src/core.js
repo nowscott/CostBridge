@@ -1,0 +1,48 @@
+export class AppError extends Error {
+  constructor(code, message, status = 400) { super(message); this.code = code; this.status = status; }
+}
+
+export function validateInput(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError('invalid_input', '请求必须是 JSON 对象。');
+  const { image, text, expenseCategories, incomeCategories, accounts, defaultAccount, now } = body;
+  if ((!image && !text) || (image && text)) throw new AppError('invalid_input', '请提供一张截图或一段文本。');
+  if (image && (typeof image !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(image) || image.length > 4000000)) throw new AppError('invalid_image', '截图必须为不超过限制的 JPEG Base64。');
+  if (text && (typeof text !== 'string' || text.length > 10000)) throw new AppError('invalid_input', '文本内容无效或过长。');
+  for (const [name, value] of Object.entries({ expenseCategories, incomeCategories, accounts })) {
+    if (!Array.isArray(value) || !value.length || value.some(v => typeof v !== 'string' || !v.trim())) throw new AppError('invalid_input', `${name} 必须是非空文本列表。`);
+  }
+  if (!accounts.includes(defaultAccount)) throw new AppError('invalid_input', '默认账户必须在账户列表中。');
+  if (!accounts.includes(body.ruleAccount)) throw new AppError('invalid_input', '特殊规则账户必须在账户列表中。');
+  if (!validDate(now)) throw new AppError('invalid_input', '当前时间须为 yyyy/MM/dd HH:mm。');
+  return body;
+}
+
+function validDate(s) {
+  if (typeof s !== 'string' || !/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(s)) return false;
+  const [y,m,d,h,min] = s.match(/\d+/g).map(Number);
+  const date = new Date(Date.UTC(y,m-1,d,h,min));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m-1 && date.getUTCDate() === d && h < 24 && min < 60;
+}
+
+export function normalize(result, input) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) throw new AppError('model_invalid', '模型返回内容无法识别。', 502);
+  const {type, amount, date, category, remark} = result;
+  if (!['收入','支出'].includes(type) || typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 100000000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6 || !validDate(date)) throw new AppError('incomplete', '金额、收支类型或时间不完整，请核对原始账单。', 422);
+  const categories = type === '收入' ? input.incomeCategories : input.expenseCategories;
+  if (!categories.includes(category)) throw new AppError('incomplete', '无法确定有效分类，请核对原始账单。', 422);
+  if (typeof remark !== 'string' || [...remark].length > 40) throw new AppError('incomplete', '备注不符合要求，请核对原始账单。', 422);
+  const warnings = [];
+  let account = result.account;
+  if (!input.accounts.includes(account)) { account = input.defaultAccount; warnings.push('账户未识别，使用默认账户，请核对。'); }
+  if (result.accountRuleApplied === true) {
+    if (!input.accounts.includes(input.ruleAccount)) throw new AppError('incomplete', '特殊规则指定的账户不在账户列表中。', 422);
+    account = input.ruleAccount;
+    warnings.push('已按 Apple Pay/0822 特殊规则选择账户，请核对。');
+  }
+  warnings.push('分类由模型判断，请核对后再入账。');
+  return {type, amount: (type === '支出' ? -1 : 1) * Math.abs(amount), currency:'CNY', date, category, account, remark, warnings};
+}
+
+export function prompt(input) {
+  return `Extract one bookkeeping transaction. JSON only: {"date":"yyyy/MM/dd HH:mm","type":"收入/支出","amount":number,"category":"二级分类","remark":"备注","account":"账户","accountRuleApplied":boolean}. CNY; expense=-, income=+. Use transaction time, else DATE. category=exact item from EXP/INC only. account=exact ACC. Unknown→DEF. remark≤40 Chinese chars. RULE priority. Set accountRuleApplied true only if the source explicitly shows Apple Pay or 0822, otherwise false. Do not invent details. EXP:${JSON.stringify(input.expenseCategories)} INC:${JSON.stringify(input.incomeCategories)} ACC:${JSON.stringify(input.accounts)} DEF:${input.defaultAccount} RULE:ApplePay/0822→${input.ruleAccount || '无'} DATE:${input.now} JSON only.`;
+}
