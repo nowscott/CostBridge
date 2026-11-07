@@ -5,7 +5,10 @@ const LIMIT = 4200000;
 export async function handle(req, res) {
   res.setHeader('content-type','application/json; charset=utf-8');
   res.setHeader('cache-control','no-store');
-  const send = (status, body) => { res.statusCode = status; res.end(JSON.stringify(body)); };
+  const send = (status, body) => {
+    res.statusCode = status;
+    res.end(JSON.stringify({...body, shortcutResult: body.ok ? 'OK' : body.error.message}));
+  };
   if (req.method !== 'POST') return send(405,{ok:false,error:{code:'method_not_allowed',message:'请使用 POST。'}});
   const token = process.env.COSTBRIDGE_TOKEN;
   if (!token) return send(500,{ok:false,error:{code:'configuration_error',message:'服务尚未配置访问凭据。'}});
