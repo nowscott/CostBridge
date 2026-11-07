@@ -62,3 +62,7 @@ export function buildIcostUrl(transaction) {
   const params = new URLSearchParams({amount:String(Math.abs(transaction.amount)), currency:transaction.currency, account:transaction.account, category:transaction.category, date:date.replaceAll('/','.'), time, remark:transaction.remark});
   return `iCost://${path}?${params}`;
 }
+
+export function buildPreview(tx) {
+  return [`${tx.type} · CNY ${Math.abs(tx.amount).toFixed(2)}`, `时间：${tx.date}`, `账户：${tx.account}`, `分类：${tx.category}`, `备注：${tx.remark || '无'}`, '', ...tx.warnings, '', '确认后将打开 iCost 入账。'].join('\n');
+}
