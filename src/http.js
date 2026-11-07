@@ -21,7 +21,7 @@ export async function handle(req, res) {
     }
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
     const transaction = await analyze(body,{baseUrl:process.env.QWEN_BASE_URL || 'https://maas.qianwenaiapi.com/compatible-mode/v1',model:process.env.QWEN_MODEL || 'qwen3.8-flash'});
-    send(200,{ok:true,transaction,preview:buildPreview(transaction),icostUrl:buildIcostUrl(transaction)});
+    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction),icostUrl:buildIcostUrl(transaction)});
   } catch (error) {
     const known = error instanceof AppError;
     send(known ? error.status : 500,{ok:false,error:{code:known ? error.code : 'internal_error',message:known ? error.message : '服务处理失败。'}});

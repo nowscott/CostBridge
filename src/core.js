@@ -64,5 +64,22 @@ export function buildIcostUrl(transaction) {
 }
 
 export function buildPreview(tx) {
-  return [`${tx.type} · CNY ${Math.abs(tx.amount).toFixed(2)}`, `时间：${tx.date}`, `账户：${tx.account}`, `分类：${tx.category}`, `备注：${tx.remark || '无'}`, '', ...tx.warnings, '', '确认后将打开 iCost 入账。'].join('\n');
+  const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
+  const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
+  return [
+    `🧾  ${tx.type} · 确认录入`,
+    line,
+    '',
+    `       CNY  ${amount}  💰`,
+    '',
+    line,
+    `⏰ 时间  ｜  ${tx.date}`,
+    `💳 账户  ｜  ${tx.account}`,
+    `📂 分类  ｜  ${tx.category}`,
+    `📝 备注  ｜  ${tx.remark || '无'}`,
+    line,
+    ...tx.warnings.map(warning => `⚠️ ${warning}`),
+    '',
+    '💡 请核对以上信息，是否入账？'
+  ].join('\n');
 }
