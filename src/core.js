@@ -4,7 +4,16 @@ export class AppError extends Error {
 
 export function validateInput(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError('invalid_input', '请求必须是 JSON 对象。');
-  const { image, text, expenseCategories, incomeCategories, accounts, defaultAccount, now } = body;
+  const { image, text, defaultAccount } = body;
+  for (const key of ['expenseCategories', 'incomeCategories', 'accounts']) {
+    if (typeof body[key] === 'string') body[key] = body[key].split(/[,，;；\n]/).map(v => v.trim().replace(/\u200b/g, '')).filter(Boolean);
+  }
+  const { expenseCategories, incomeCategories, accounts } = body;
+  if (!body.now) {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).map(p => [p.type,p.value]));
+    body.now = `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`;
+  }
+  const now = body.now;
   if ((!image && !text) || (image && text)) throw new AppError('invalid_input', '请提供一张截图或一段文本。');
   if (image && (typeof image !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(image) || image.length > 4000000)) throw new AppError('invalid_image', '截图必须为不超过限制的 JPEG Base64。');
   if (text && (typeof text !== 'string' || text.length > 10000)) throw new AppError('invalid_input', '文本内容无效或过长。');

@@ -33,3 +33,9 @@ test('iCost links encode fields and use documented income and expense paths', ()
  assert.equal(url.searchParams.get('date'), '2026.11.07'); assert.equal(url.searchParams.get('remark'), '午餐 & 茶');
  assert.equal(new URL(buildIcostUrl({...tx,type:'收入',amount:3})).host,'income');
 });
+
+test('accepts the iCost shortcut text lists and supplies Shanghai current time', () => {
+ const converted = validateInput({...input,expenseCategories:'餐饮；其他',incomeCategories:'工资',accounts:'信用卡,储蓄卡',now:undefined});
+ assert.deepEqual(converted.expenseCategories,['餐饮','其他']);
+ assert.match(converted.now,/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/);
+});
