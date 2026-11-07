@@ -10,7 +10,7 @@ form.addEventListener('submit', async event => {
   output.textContent = '正在识别，请稍候…';
   const button = form.querySelector('button'); button.disabled = true;
   try {
-    const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${val('token')}`},body:JSON.stringify({text:val('text'),expenseCategories:list('expense'),incomeCategories:list('income'),accounts:list('accounts'),defaultAccount:val('default'),ruleAccount:val('rule'),now})});
+    const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${val('token')}`},body:JSON.stringify({apiKey:val('apiKey'),text:val('text'),expenseCategories:list('expense'),incomeCategories:list('income'),accounts:list('accounts'),defaultAccount:val('default'),ruleAccount:val('rule'),now})});
     const body = await response.json();
     output.textContent = JSON.stringify(body,null,2);
   } catch { output.textContent = '请求失败，请检查网络或服务配置。'; }
