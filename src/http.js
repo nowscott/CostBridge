@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import { AppError } from './core.js';
+import { AppError, buildIcostUrl } from './core.js';
 import { analyze } from './service.js';
 const LIMIT = 4200000;
 export async function handle(req, res) {
@@ -21,7 +21,7 @@ export async function handle(req, res) {
     }
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
     const transaction = await analyze(body,{baseUrl:process.env.QWEN_BASE_URL || 'https://maas.qianwenaiapi.com/compatible-mode/v1',model:process.env.QWEN_MODEL || 'qwen3.8-flash'});
-    send(200,{ok:true,transaction});
+    send(200,{ok:true,transaction,icostUrl:buildIcostUrl(transaction)});
   } catch (error) {
     const known = error instanceof AppError;
     send(known ? error.status : 500,{ok:false,error:{code:known ? error.code : 'internal_error',message:known ? error.message : '服务处理失败。'}});

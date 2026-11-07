@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze } from '../src/service.js';
-import { normalize, validateInput } from '../src/core.js';
+import { normalize, validateInput, buildIcostUrl } from '../src/core.js';
 const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'};
 const config = {baseUrl:'https://example.test',model:'test'};
 const transaction = {date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡',accountRuleApplied:false};
@@ -24,4 +24,12 @@ test('invalid values and malformed requests fail', () => {
 test('upstream failures do not become success', async () => {
  await assert.rejects(analyze(input,config,async()=>({ok:false,status:401})), /HTTP 401/);
  await assert.rejects(analyze(input,config,async()=>({ok:true,json:async()=>({})})), /无法识别/);
+});
+
+test('iCost links encode fields and use documented income and expense paths', () => {
+ const tx = normalize({...transaction,remark:'午餐 & 茶'},input);
+ const url = new URL(buildIcostUrl(tx));
+ assert.equal(url.host, 'expense'); assert.equal(url.searchParams.get('amount'), '12.5');
+ assert.equal(url.searchParams.get('date'), '2026.11.07'); assert.equal(url.searchParams.get('remark'), '午餐 & 茶');
+ assert.equal(new URL(buildIcostUrl({...tx,type:'收入',amount:3})).host,'income');
 });

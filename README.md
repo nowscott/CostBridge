@@ -23,7 +23,7 @@
 成功示例：
 
 ```json
-{"ok":true,"transaction":{"type":"支出","amount":-12.5,"currency":"CNY","date":"2026/11/07 16:06","category":"餐饮","account":"信用卡","remark":"午餐","warnings":["账户未识别，使用默认账户，请核对。","分类由模型判断，请核对后再入账。"]}}
+{"ok":true,"transaction":{"type":"支出","amount":-12.5,"currency":"CNY","date":"2026/11/07 16:06","category":"餐饮","account":"信用卡","remark":"午餐","warnings":["账户未识别，使用默认账户，请核对。","分类由模型判断，请核对后再入账。"]},"icostUrl":"iCost://expense?amount=12.5&currency=CNY&..."}
 ```
 
 失败返回非 2xx 状态和 `{"ok":false,"error":{"code":"...","message":"..."}}`；无论请求或模型失败，都不代表已入账。Vercel 请求体上限 4.5 MB；Base64 会增加约三分之一体积，建议截图转 JPEG 并缩小后控制在约 3 MB 以下。如平台在到达函数前拒绝超大请求，可能返回平台自己的错误而不是上述 JSON。
@@ -40,6 +40,6 @@
 2. 按现有指令查找支出二级分类、收入分类和账户，整理为文本列表。设置默认账户和 ApplePay/0822 对应账户，确保均存在于账户列表中；当前时间格式化为 `yyyy/MM/dd HH:mm`。
 3. 建立 JSON 字典，使用接口字段 `apiKey`（千问密钥）、`image`、`expenseCategories`、`incomeCategories`、`accounts`、`defaultAccount`、`ruleAccount`、`now`，用“获取 URL 内容”向服务发 POST 请求。请求头添加 `Content-Type: application/json` 和 `Authorization: Bearer <你的服务访问凭据>`。此凭据只用于访问 CostBridge，不是模型密钥。
 4. 如网络动作报错或 `ok` 不为真，显示错误并停止。成功时从 `transaction` 展示收支、金额、时间、账户、分类、备注和所有 `warnings`，提供确认和取消选项。
-5. 选择确认后，沿用现有千问版的 iCost x-callback-url 编码及打开动作：将相应变量接到原位置，金额使用绝对值。由于现有动作中收入/支出的 URL 路径是动态变量，尚未可靠确认其具体值，本项目不擅自生成链接。先用虚构数据检查生成的链接，不要打开入账链接；确认无误后由你决定是否启用。打开链接或返回快捷指令均不能单独证明记账成功。
+5. 选择确认后，打开响应中的 `icostUrl`；该链接根据 iCost 官方文档生成。先用虚构数据检查生成的链接，不要打开入账链接；确认无误后由你决定是否启用。打开链接或返回快捷指令均不能单独证明记账成功。
 
 截图识别前无需传入真实账本记录；可用虚构交易文本验证接口。当前系统命令行没有直接编辑现有快捷指令的接口，本项目不覆盖已有指令。

@@ -46,3 +46,10 @@ export function normalize(result, input) {
 export function prompt(input) {
   return `Extract one bookkeeping transaction. JSON only: {"date":"yyyy/MM/dd HH:mm","type":"收入/支出","amount":number,"category":"二级分类","remark":"备注","account":"账户","accountRuleApplied":boolean}. CNY; expense=-, income=+. Use transaction time, else DATE. category=exact item from EXP/INC only. account=exact ACC. Unknown→DEF. remark≤40 Chinese chars. RULE priority. Set accountRuleApplied true only if the source explicitly shows Apple Pay or 0822, otherwise false. Do not invent details. EXP:${JSON.stringify(input.expenseCategories)} INC:${JSON.stringify(input.incomeCategories)} ACC:${JSON.stringify(input.accounts)} DEF:${input.defaultAccount} RULE:ApplePay/0822→${input.ruleAccount || '无'} DATE:${input.now} JSON only.`;
 }
+
+export function buildIcostUrl(transaction) {
+  const path = transaction.type === '支出' ? 'expense' : 'income';
+  const [date, time] = transaction.date.split(' ');
+  const params = new URLSearchParams({amount:String(Math.abs(transaction.amount)), currency:transaction.currency, account:transaction.account, category:transaction.category, date:date.replaceAll('/','.'), time, remark:transaction.remark});
+  return `iCost://${path}?${params}`;
+}
