@@ -26,6 +26,8 @@
 {"ok":true,"transaction":{"type":"支出","amount":-12.5,"currency":"CNY","date":"2026/11/07 16:06","category":"餐饮","account":"信用卡","remark":"午餐","warnings":["账户未识别，使用默认账户，请核对。","分类由模型判断，请核对后再入账。"]},"icostUrl":"iCost://expense?amount=12.5&currency=CNY&..."}
 ```
 
+请求可设置 `showTokens` 为 `true` 或 `false`，控制小票是否显示模型返回的总 token 数；未设置时默认显示。若模型未返回用量，小票显示“未提供”。
+
 失败返回非 2xx 状态和 `{"ok":false,"error":{"code":"...","message":"..."}}`；无论请求或模型失败，都不代表已入账。Vercel 请求体上限 4.5 MB；Base64 会增加约三分之一体积，建议截图转 JPEG 并缩小后控制在约 3 MB 以下。如平台在到达函数前拒绝超大请求，可能返回平台自己的错误而不是上述 JSON。
 
 ## 部署到 Vercel

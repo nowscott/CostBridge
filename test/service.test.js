@@ -8,7 +8,7 @@ const transaction = {date:'2026/11/07 15:30',type:'支出',amount:-12.5,category
 const fake = value => async () => ({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(value)}}]})});
 test('returns normalized transaction from a model response', async () => {
  const result = await analyze(input,config,fake(transaction));
- assert.equal(result.amount,-12.5); assert.equal(result.account,'储蓄卡'); assert.equal(result.category,'餐饮');
+ assert.equal(result.transaction.amount,-12.5); assert.equal(result.transaction.account,'储蓄卡'); assert.equal(result.transaction.category,'餐饮');
 });
 test('income sign and default account are explicit', () => {
  const result = normalize({...transaction,type:'收入',amount:-3,category:'工资',account:'未知'},input);
@@ -44,4 +44,13 @@ test('receipt shows the transaction and identifies a default account', () => {
  const preview = buildPreview(normalize({...transaction,account:'未知'},input));
  assert.match(preview,/12\.50/); assert.match(preview,/餐饮/); assert.match(preview,/信用卡（默认）/);
  assert.doesNotMatch(preview,/⚠️|注意事项/);
+});
+
+test('token display can be enabled or disabled and uses provider usage', async () => {
+ const fetcher = async () => ({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(transaction)}}],usage:{total_tokens:123}})});
+ const result = await analyze(input,config,fetcher);
+ assert.match(buildPreview(result.transaction,result.usage,true),/123 tokens/);
+ assert.doesNotMatch(buildPreview(result.transaction,result.usage,false),/消耗/);
+ assert.doesNotMatch(buildPreview(result.transaction,result.usage,'关'),/消耗/);
+ assert.match(buildPreview(result.transaction,undefined,true),/未提供/);
 });
