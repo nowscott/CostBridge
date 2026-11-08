@@ -61,4 +61,6 @@ test('token display can be enabled or disabled and uses provider usage', async (
  assert.doesNotMatch(buildPreview(result.transaction,result.usage,false),/消耗/);
  assert.doesNotMatch(buildPreview(result.transaction,result.usage,'关'),/消耗/);
  assert.match(buildPreview(result.transaction,undefined,true),/未提供/);
+ assert.match(buildPreview(result.transaction,result.usage,true,1.234),/123 tokens\n⏱️ 服务耗时  1\.23 秒/);
+ assert.match(buildPreview(result.transaction,result.usage,false,1.234),/服务耗时  1\.23 秒/);
 });

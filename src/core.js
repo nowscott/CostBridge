@@ -63,7 +63,7 @@ export function buildIcostUrl(transaction) {
   return `iCost://${path}?${params}`;
 }
 
-export function buildPreview(tx, usage, showTokens = true) {
+export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
@@ -80,7 +80,9 @@ export function buildPreview(tx, usage, showTokens = true) {
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
-    ...(showTokens === false || showTokens === '关' ? [] : [`⚙️ 消耗  ${Number.isInteger(usage?.total_tokens) ? `${usage.total_tokens} tokens` : '未提供'}`, line]),
+    ...(showTokens === false || showTokens === '关' ? [] : [`⚙️ 消耗  ${Number.isInteger(usage?.total_tokens) ? `${usage.total_tokens} tokens` : '未提供'}`]),
+    ...(elapsedSeconds === undefined ? [] : [`⏱️ 服务耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
+    line,
     '确认以上信息后入账？'
   ].join('\n');
 }
