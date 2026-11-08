@@ -10,9 +10,9 @@ function showQuota(snapshot) {
     document.querySelector(`#${name}-remaining`).textContent = available ? Number(remaining).toLocaleString('zh-CN') : '—';
     document.querySelector(`#${name}-limit`).textContent = available ? `/ ${Number(limit).toLocaleString('zh-CN')}` : '';
     document.querySelector(`#${name}-bar`).style.width = available && Number(limit) > 0 ? `${Math.max(0, Math.min(100, Number(remaining) / Number(limit) * 100))}%` : '0%';
-    document.querySelector(`#${name}-reset`).textContent = reset ? `快照后 ${reset} 恢复` : '恢复时间未提供';
+    document.querySelector(`#${name}-reset`).textContent = reset ? `${name === 'requests' ? '日请求' : 'Token'}：快照后 ${reset} 恢复` : `${name === 'requests' ? '日请求' : 'Token'}：恢复时间未提供`;
   }
-  quota.textContent = `快照时间 ${new Date(snapshot.time).toLocaleString('zh-CN')} · 实际额度可能已变化`;
+  quota.textContent = `快照 ${new Date(snapshot.time).toLocaleString('zh-CN')}`;
 }
 async function refreshQuota() {
   try {
