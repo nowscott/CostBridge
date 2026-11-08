@@ -19,7 +19,7 @@ test('uses the server model key instead of a client-supplied key', async () => {
 test('returns Groq rate-limit headers alongside the result', async () => {
  const headers = new Headers({'x-ratelimit-remaining-requests':'987','x-ratelimit-limit-requests':'1000','x-ratelimit-remaining-tokens':'6500','x-ratelimit-limit-tokens':'8000'});
  const result = await analyze(input,config,async()=>({...(await fake(transaction)()),headers}));
- assert.deepEqual(result.rateLimits,{dailyRequestsRemaining:'987',dailyRequestsLimit:'1000',tokensPerMinuteRemaining:'6500',tokensPerMinuteLimit:'8000'});
+ assert.deepEqual(result.rateLimits,{dailyRequestsRemaining:'987',dailyRequestsLimit:'1000',tokensPerMinuteRemaining:'6500',tokensPerMinuteLimit:'8000',requestsReset:null,tokensReset:null});
 });
 test('income sign and default account are explicit', () => {
  const result = normalize({...transaction,type:'收入',amount:-3,category:'工资',account:'未知'},input);
@@ -96,4 +96,13 @@ test('token display accepts the values a shortcut may send', () => {
  const tx = normalize(transaction,input);
  for (const value of [false,0,'false','0','关','off','OFF','no','否']) assert.doesNotMatch(buildPreview(tx,{total_tokens:123},value),/消耗/);
  for (const value of [true,1,'true','开',undefined]) assert.match(buildPreview(tx,{total_tokens:123},value),/123 tokens/);
+});
+
+test('captures quota headers from failed model calls', async () => {
+ let snapshot;
+ const headers = new Headers({'x-ratelimit-remaining-requests':'0','x-ratelimit-reset-requests':'1h'});
+ await assert.rejects(analyze(input,config,async()=>({ok:false,status:429,headers}), (limits,time)=>{ snapshot={limits,time}; }), /HTTP 429/);
+ assert.equal(snapshot.limits.dailyRequestsRemaining,'0');
+ assert.equal(snapshot.limits.requestsReset,'1h');
+ assert.ok(!Number.isNaN(Date.parse(snapshot.time)));
 });
