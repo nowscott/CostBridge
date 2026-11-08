@@ -23,8 +23,7 @@ export async function handle(req, res) {
       body = raw;
     }
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
-    const groq = body.benchmarkModel === 'groq';
-    const {transaction, usage} = await analyze(body,{apiKey:groq ? process.env.GROQ_API_KEY : process.env.QWEN_API_KEY,baseUrl:groq ? 'https://api.groq.com/openai/v1' : (process.env.QWEN_BASE_URL || 'https://maas.qianwenaiapi.com/compatible-mode/v1'),model:groq ? 'qwen/qwen3.8-27b' : (body.benchmarkModel === 'qwen3.7-flash' ? 'qwen3.7-flash' : (process.env.QWEN_MODEL || 'qwen3.8-flash')),groq});
+    const {transaction, usage} = await analyze(body,{apiKey:process.env.QWEN_API_KEY,baseUrl:process.env.QWEN_BASE_URL || 'https://maas.qianwenaiapi.com/compatible-mode/v1',model:process.env.QWEN_MODEL || 'qwen3.8-flash'});
     send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, usage, body.showTokens),icostUrl:buildIcostUrl(transaction)});
   } catch (error) {
     const known = error instanceof AppError;
