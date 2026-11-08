@@ -25,6 +25,14 @@ test('income sign and default account are explicit', () => {
  const result = normalize({...transaction,type:'收入',amount:-3,category:'工资',account:'未知'},input);
  assert.equal(result.amount,3); assert.equal(result.account,'信用卡'); assert.match(result.warnings[0],/默认账户/);
 });
+test('invalid default warns when the identified account is valid and stops otherwise', async () => {
+ const invalid = {...input, defaultAccount:'现金'};
+ const result = await analyze(invalid,config,fake(transaction));
+ assert.equal(result.transaction.account,'储蓄卡');
+ assert.match(buildPreview(result.transaction),/默认账户不在账户列表中/);
+ assert.match(prompt(invalid),/DEF:""/);
+ await assert.rejects(analyze(invalid,config,fake({...transaction,account:''})), /账户未识别，且默认账户不在账户列表中/);
+});
 test('special rule selects configured account', () => {
  assert.equal(normalize({...transaction,accountRuleApplied:true},input).account,'信用卡');
 });
