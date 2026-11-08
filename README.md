@@ -14,7 +14,7 @@
 
 ## 启动
 
-需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`COSTBRIDGE_TOKEN` 是自定义的高强度随机访问凭据，`GROQ_API_KEY` 是配置在服务端的 Groq API 密钥；当前使用 `qwen/qwen3.8-27b` 模型。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
+需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`UNKEY_ROOT_KEY` 是仅有目标授权空间验证权限的 Unkey 管理密钥，`GROQ_API_KEY` 是配置在服务端的 Groq API 密钥；当前使用 `qwen/qwen3.8-27b` 模型。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
 
 ## 接口
 
@@ -36,7 +36,7 @@
 
 ## 部署到 Vercel
 
-导入本仓库创建独立项目，Framework 选择 Other，Node 运行时使用项目声明的版本。在项目环境变量中设置 `COSTBRIDGE_TOKEN` 和 `GROQ_API_KEY`，部署后以 HTTPS 调用 `/api/analyze`。测试和生产环境分别使用独立凭据；不要分享包含服务访问凭据的快捷指令。Vercel 和 Groq 平台可能产生费用，以各自当前套餐为准。
+导入本仓库创建独立项目，Framework 选择 Other，Node 运行时使用项目声明的版本。在项目环境变量中设置 `UNKEY_ROOT_KEY` 和 `GROQ_API_KEY`，部署后以 HTTPS 调用 `/api/analyze`。测试和生产环境分别使用独立授权空间和凭据；不要分享包含服务访问凭据的快捷指令。Vercel 和 Groq 平台可能产生费用，以各自当前套餐为准。
 
 ## 制作快捷指令
 
