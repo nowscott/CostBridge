@@ -42,7 +42,7 @@ export async function handle(req, res, logCall = () => {}) {
     record.modelMs = Math.round(performance.now() - modelStarted);
     record.usage = usage ? {promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens} : undefined;
     record.stage = 'complete';
-    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, usage, body.showTokens, (performance.now() - started) / 1000),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:record.rateLimitsTime});
+    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, rateLimits, (performance.now() - started) / 1000),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:record.rateLimitsTime});
   } catch (error) {
     if (record.stage === 'auth') record.authMs = Math.round(performance.now() - stageStarted);
     if (record.stage === 'model') record.modelMs = Math.round(performance.now() - stageStarted);

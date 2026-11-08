@@ -59,15 +59,13 @@ test('receipt shows the transaction and identifies a default account', () => {
  assert.doesNotMatch(preview,/⚠️|注意事项/);
 });
 
-test('token display can be enabled or disabled and uses provider usage', async () => {
- const fetcher = async () => ({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(transaction)}}],usage:{total_tokens:123}})});
- const result = await analyze(input,config,fetcher);
- assert.match(buildPreview(result.transaction,result.usage,true),/123 tokens/);
- assert.doesNotMatch(buildPreview(result.transaction,result.usage,false),/消耗/);
- assert.doesNotMatch(buildPreview(result.transaction,result.usage,'关'),/消耗/);
- assert.match(buildPreview(result.transaction,undefined,true),/未提供/);
- assert.match(buildPreview(result.transaction,result.usage,true,1.234),/123 tokens · 请求耗时 1\.23 秒/);
- assert.match(buildPreview(result.transaction,result.usage,false,1.234),/请求耗时  1\.23 秒/);
+test('receipt displays the daily request snapshot followed by request time', () => {
+ const tx = normalize(transaction,input);
+ const preview = buildPreview(tx,{dailyRequestsRemaining:'987',dailyRequestsLimit:'1000'},1.234);
+ assert.match(preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时  1\.23 秒/);
+ assert.doesNotMatch(preview,/tokens|消耗/);
+ assert.match(buildPreview(tx,null),/今日请求剩余  未提供/);
+ assert.match(buildPreview(tx,{dailyRequestsRemaining:'0',dailyRequestsLimit:'1000'}),/今日请求剩余  0 \/ 1000 次/);
 });
 
 test('accepts JSON wrapped in a code fence from the model', async () => {
@@ -90,12 +88,6 @@ test('rounds amounts to cents before building the iCost link', () => {
  const nearlyWhole = normalize({...transaction,amount:12.5000000001},input);
  assert.equal(nearlyWhole.amount,-12.5);
  assert.equal(new URL(buildIcostUrl(nearlyWhole)).searchParams.get('amount'),'12.5');
-});
-
-test('token display accepts the values a shortcut may send', () => {
- const tx = normalize(transaction,input);
- for (const value of [false,0,'false','0','关','off','OFF','no','否']) assert.doesNotMatch(buildPreview(tx,{total_tokens:123},value),/消耗/);
- for (const value of [true,1,'true','开',undefined]) assert.match(buildPreview(tx,{total_tokens:123},value),/123 tokens/);
 });
 
 test('captures quota headers from failed model calls', async () => {
