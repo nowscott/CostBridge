@@ -3,12 +3,18 @@ import assert from 'node:assert/strict';
 import { analyze } from '../src/service.js';
 import { normalize, validateInput, buildIcostUrl, buildPreview } from '../src/core.js';
 const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'};
-const config = {baseUrl:'https://example.test',model:'test'};
+const config = {baseUrl:'https://example.test',model:'test',apiKey:'server-model-key'};
 const transaction = {date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡',accountRuleApplied:false};
 const fake = value => async () => ({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(value)}}]})});
 test('returns normalized transaction from a model response', async () => {
  const result = await analyze(input,config,fake(transaction));
  assert.equal(result.transaction.amount,-12.5); assert.equal(result.transaction.account,'储蓄卡'); assert.equal(result.transaction.category,'餐饮');
+});
+test('uses the server model key instead of a client-supplied key', async () => {
+ let authorization;
+ await analyze(input,config,async (url, options) => { authorization = options.headers.authorization; return fake(transaction)(); });
+ assert.equal(authorization,'Bearer server-model-key');
+ await assert.rejects(analyze(input,{...config,apiKey:''},fake(transaction)), /服务尚未配置千问 API 密钥/);
 });
 test('income sign and default account are explicit', () => {
  const result = normalize({...transaction,type:'收入',amount:-3,category:'工资',account:'未知'},input);

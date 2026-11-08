@@ -23,7 +23,7 @@ export async function handle(req, res) {
       body = raw;
     }
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
-    const {transaction, usage} = await analyze(body,{baseUrl:process.env.QWEN_BASE_URL || 'https://maas.qianwenaiapi.com/compatible-mode/v1',model:process.env.QWEN_MODEL || 'qwen3.8-flash'});
+    const {transaction, usage} = await analyze(body,{apiKey:process.env.QWEN_API_KEY,baseUrl:process.env.QWEN_BASE_URL || 'https://maas.qianwenaiapi.com/compatible-mode/v1',model:process.env.QWEN_MODEL || 'qwen3.8-flash'});
     send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, usage, body.showTokens),icostUrl:buildIcostUrl(transaction)});
   } catch (error) {
     const known = error instanceof AppError;

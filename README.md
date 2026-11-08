@@ -10,14 +10,14 @@
 
 ## 启动
 
-需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`COSTBRIDGE_TOKEN` 是自定义的高强度随机访问凭据，千问 AI 平台密钥由调用方在每次请求中提供，服务不保存。可选设置 `QWEN_MODEL` 和 `QWEN_BASE_URL`；默认 qwen3.8-flash 和千问 AI 平台兼容接口。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
+需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`COSTBRIDGE_TOKEN` 是自定义的高强度随机访问凭据，`QWEN_API_KEY` 是配置在服务端的千问 AI 平台密钥。可选设置 `QWEN_MODEL` 和 `QWEN_BASE_URL`；默认 qwen3.8-flash 和千问 AI 平台兼容接口。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
 
 ## 接口
 
-`POST /api/analyze`，头部 `Authorization: Bearer <服务访问凭据>`、`Content-Type: application/json`。请求中 `apiKey` 填写调用方自己的千问 API 密钥。一次传 `image`（JPEG 文件的纯 Base64，不含前缀和换行）或 `text`，二选一。示例均为虚构数据：
+`POST /api/analyze`，头部 `Authorization: Bearer <服务访问凭据>`、`Content-Type: application/json`。模型密钥由服务端提供，无需在请求中传入。一次传 `image`（JPEG 文件的纯 Base64，不含前缀和换行）或 `text`，二选一。示例均为虚构数据：
 
 ```json
-{"apiKey":"YOUR_QWEN_API_KEY","text":"午餐 12.50 元","expenseCategories":["餐饮","其他"],"incomeCategories":["工资"],"accounts":["信用卡","储蓄卡"],"defaultAccount":"信用卡","ruleAccount":"信用卡","now":"2026/11/07 16:06"}
+{"text":"午餐 12.50 元","expenseCategories":["餐饮","其他"],"incomeCategories":["工资"],"accounts":["信用卡","储蓄卡"],"defaultAccount":"信用卡","ruleAccount":"信用卡","now":"2026/11/07 16:06"}
 ```
 
 成功示例：
@@ -32,7 +32,7 @@
 
 ## 部署到 Vercel
 
-导入本仓库创建独立项目，Framework 选择 Other，Node 运行时使用项目声明的版本。在项目环境变量中设置 `COSTBRIDGE_TOKEN`，部署后以 HTTPS 调用 `/api/analyze`。测试和生产环境分别使用独立凭据；模型密钥由快捷指令在每次请求中提供，请勿分享带有密钥的快捷指令。Vercel 和千问平台可能产生费用，以各自当前套餐为准。
+导入本仓库创建独立项目，Framework 选择 Other，Node 运行时使用项目声明的版本。在项目环境变量中设置 `COSTBRIDGE_TOKEN` 和 `QWEN_API_KEY`，部署后以 HTTPS 调用 `/api/analyze`。测试和生产环境分别使用独立凭据；不要分享包含服务访问凭据的快捷指令。Vercel 和千问平台可能产生费用，以各自当前套餐为准。
 
 ## 制作快捷指令
 
@@ -40,7 +40,7 @@
 
 1. 在付款详情页触发指令，用“截屏”获取当前屏幕，转为 JPEG，按需缩小图片后使用 Base64 编码，并设置为不换行。
 2. 按现有指令查找支出二级分类、收入分类和账户，整理为文本列表。设置默认账户和 ApplePay/0822 对应账户，确保均存在于账户列表中；当前时间格式化为 `yyyy/MM/dd HH:mm`。
-3. 建立 JSON 字典，使用接口字段 `apiKey`（千问密钥）、`image`、`expenseCategories`、`incomeCategories`、`accounts`、`defaultAccount`、`ruleAccount`、`now`，用“获取 URL 内容”向服务发 POST 请求。请求头添加 `Content-Type: application/json` 和 `Authorization: Bearer <你的服务访问凭据>`。此凭据只用于访问 CostBridge，不是模型密钥。
+3. 建立 JSON 字典，使用接口字段 `image`、`expenseCategories`、`incomeCategories`、`accounts`、`defaultAccount`、`ruleAccount`、`now`，用“获取 URL 内容”向服务发 POST 请求。请求头添加 `Content-Type: application/json` 和 `Authorization: Bearer <你的服务访问凭据>`。此凭据只用于访问 CostBridge，不是模型密钥。
 4. 如网络动作报错或 `ok` 不为真，显示错误并停止。成功时从 `transaction` 展示收支、金额、时间、账户、分类、备注和所有 `warnings`，提供确认和取消选项。
 5. 选择确认后，打开响应中的 `icostUrl`；该链接根据 iCost 官方文档生成。先用虚构数据检查生成的链接，不要打开入账链接；确认无误后由你决定是否启用。打开链接或返回快捷指令均不能单独证明记账成功。
 
