@@ -1,4 +1,5 @@
 import { AppError, buildIcostUrl, buildPreview } from './core.js';
+import { verifyAccessKey } from './auth.js';
 import { analyze } from './service.js';
 const LIMIT = 4200000;
 export async function handle(req, res) {
@@ -14,13 +15,7 @@ export async function handle(req, res) {
     const authorization = req.headers.authorization || '';
     if (!authorization.startsWith('Bearer ') || !authorization.slice(7)) throw new AppError('unauthorized','访问凭据无效。',401);
     if (!process.env.UNKEY_ROOT_KEY) throw new AppError('configuration_error','服务尚未配置授权验证。',500);
-    let verification;
-    try {
-      verification = await fetch('https://api.unkey.com/v2/keys.verifyKey',{method:'POST',headers:{authorization:`Bearer ${process.env.UNKEY_ROOT_KEY}`,'content-type':'application/json'},body:JSON.stringify({key:authorization.slice(7)})});
-    } catch { throw new AppError('auth_unavailable','授权验证服务连接失败，请稍后再试。',503); }
-    if (!verification.ok) throw new AppError('auth_unavailable','授权验证服务不可用，请稍后再试。',503);
-    const verified = await verification.json();
-    if (!verified.data.valid) throw new AppError('unauthorized','访问凭据无效或已停用。',401);
+    await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
     let body = req.body;
     if (body === undefined) {
       let raw = '';
