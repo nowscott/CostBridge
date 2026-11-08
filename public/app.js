@@ -2,8 +2,17 @@ const quota = document.querySelector('#quota');
 function showQuota(snapshot) {
   if (!snapshot) { quota.textContent = '暂无限额记录。'; return; }
   const limits = snapshot.limits;
-  const value = (remaining, limit) => remaining != null && limit != null ? `${remaining} / ${limit}` : '未提供';
-  quota.textContent = `Groq ${snapshot.model}，快照时间 ${new Date(snapshot.time).toLocaleString('zh-CN')}：每日请求剩余 ${value(limits.dailyRequestsRemaining, limits.dailyRequestsLimit)}（恢复：${limits.requestsReset || '未提供'}）；每分钟 token 剩余 ${value(limits.tokensPerMinuteRemaining, limits.tokensPerMinuteLimit)}（恢复：${limits.tokensReset || '未提供'}）。恢复时间从快照时刻起算；这是历史快照，实际额度可能已变化。`;
+  for (const [name, remaining, limit, reset] of [
+    ['requests', limits.dailyRequestsRemaining, limits.dailyRequestsLimit, limits.requestsReset],
+    ['tokens', limits.tokensPerMinuteRemaining, limits.tokensPerMinuteLimit, limits.tokensReset]
+  ]) {
+    const available = remaining != null && limit != null;
+    document.querySelector(`#${name}-remaining`).textContent = available ? Number(remaining).toLocaleString('zh-CN') : '—';
+    document.querySelector(`#${name}-limit`).textContent = available ? `/ ${Number(limit).toLocaleString('zh-CN')}` : '';
+    document.querySelector(`#${name}-bar`).style.width = available && Number(limit) > 0 ? `${Math.max(0, Math.min(100, Number(remaining) / Number(limit) * 100))}%` : '0%';
+    document.querySelector(`#${name}-reset`).textContent = reset ? `${name === 'requests' ? '日请求' : 'Token'}：快照后 ${reset} 恢复` : `${name === 'requests' ? '日请求' : 'Token'}：恢复时间未提供`;
+  }
+  quota.textContent = `快照 ${new Date(snapshot.time).toLocaleString('zh-CN')}`;
 }
 async function refreshQuota() {
   try {
