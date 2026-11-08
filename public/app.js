@@ -6,17 +6,16 @@ function showQuota(snapshot) {
   quota.textContent = `Groq ${snapshot.model}，快照时间 ${new Date(snapshot.time).toLocaleString('zh-CN')}：每日请求剩余 ${value(limits.dailyRequestsRemaining, limits.dailyRequestsLimit)}（恢复：${limits.requestsReset || '未提供'}）；每分钟 token 剩余 ${value(limits.tokensPerMinuteRemaining, limits.tokensPerMinuteLimit)}（恢复：${limits.tokensReset || '未提供'}）。恢复时间从快照时刻起算；这是历史快照，实际额度可能已变化。`;
 }
 async function refreshQuota() {
-  const token = document.querySelector('#token').value.trim();
-  if (!token) { quota.textContent = '请输入服务访问凭据后刷新限额。'; return; }
-  quota.textContent = '正在读取限额快照…';
   try {
-    const response = await fetch('/api/quota', {headers:{Authorization:`Bearer ${token}`}});
+    const response = await fetch('/api/quota');
     const body = await response.json();
     if (!body.ok) { quota.textContent = body.error.message; return; }
     showQuota(body.snapshot);
-  } catch { quota.textContent = '限额记录暂时不可用，请稍后刷新。'; }
+  } catch { quota.textContent = '限额记录暂时不可用，请稍后再试。'; }
 }
-document.querySelector('#refresh-quota').addEventListener('click', refreshQuota);
+refreshQuota();
+setInterval(() => { if (!document.hidden) refreshQuota(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshQuota(); });
 const form = document.querySelector('#form');
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -37,7 +36,7 @@ form.addEventListener('submit', async event => {
     const body = await response.json();
     output.textContent = JSON.stringify(body,null,2);
     if (body.rateLimits && Object.values(body.rateLimits).some(value => value != null)) showQuota({limits:body.rateLimits, model:'qwen/qwen3.8-27b', time:body.rateLimitsTime});
-    else quota.textContent = '本次未取得限额信息，可点击刷新查看最近记录。';
-  } catch (error) { output.textContent = error.message === '请选择小于 3 MB 的 JPEG 截图。' ? error.message : '请求失败，请检查网络或服务配置。'; quota.textContent = '本次未取得 Groq 限额信息，请刷新查看最近记录。'; }
+    else quota.textContent = '本次未取得限额信息，稍后将自动更新。';
+  } catch (error) { output.textContent = error.message === '请选择小于 3 MB 的 JPEG 截图。' ? error.message : '请求失败，请检查网络或服务配置。'; quota.textContent = '本次未取得 Groq 限额信息，稍后将自动更新。'; }
   finally { button.disabled = false; }
 });
