@@ -1,9 +1,11 @@
 import http from 'node:http';
 import { handle } from './http.js';
 import { handleQuota } from './quota.js';
+import { handleCreateKey } from './create-key.js';
 import { serveStatic } from './static.js';
 http.createServer(async (req,res) => {
   if ((req.url || '').split('?')[0] === '/api/analyze') return handle(req,res);
+  if ((req.url || '').split('?')[0] === '/api/create-key') return handleCreateKey(req,res);
   if ((req.url || '').split('?')[0] === '/api/quota') return handleQuota(req,res);
   if (await serveStatic(req,res)) return;
   res.writeHead(404,{'content-type':'application/json'}); res.end(JSON.stringify({ok:false,error:{code:'not_found',message:'接口不存在。'}}));
