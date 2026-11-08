@@ -1,1 +1,1 @@
-{"name":"costbridge","version":"0.6.0","private":true,"type":"module","engines":{"node":">=20"},"scripts":{"start":"node src/server.js","test":"node --test"},"dependencies":{"@neondatabase/serverless":"^1.2.0","@vercel/functions":"^3.11.0"}}
+{"name":"costbridge","version":"0.7.0","private":true,"type":"module","engines":{"node":">=20"},"scripts":{"start":"node src/server.js","test":"node --test"},"dependencies":{"@neondatabase/serverless":"^1.2.0","@vercel/functions":"^3.11.0"}}
