@@ -50,7 +50,7 @@ form.addEventListener('submit', async event => {
     const file = document.querySelector('#image').files[0];
     if (file && (file.type !== 'image/jpeg' || file.size > 3000000)) throw new Error('请选择小于 3 MB 的 JPEG 截图。');
     const source = file ? {image: (await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }))} : {text:val('text')};
-    const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${val('token')}`},body:JSON.stringify({...source,expenseCategories:list('expense'),incomeCategories:list('income'),accounts:list('accounts'),defaultAccount:val('default'),ruleAccount:val('rule'),now})});
+    const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${val('token')}`},body:JSON.stringify({...source,expenseCategories:list('expense'),incomeCategories:list('income'),accounts:list('accounts'),defaultAccount:val('default'),customPrompt:val('rule'),now})});
     const body = await response.json();
     output.textContent = JSON.stringify(body,null,2);
     if (body.rateLimits && Object.values(body.rateLimits).some(value => value != null)) showQuota({limits:body.rateLimits, model:'qwen/qwen3.8-27b', time:body.rateLimitsTime});

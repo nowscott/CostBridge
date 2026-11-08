@@ -21,7 +21,8 @@ export function validateInput(body) {
     if (!Array.isArray(value) || !value.length || value.some(v => typeof v !== 'string' || !v.trim())) throw new AppError('invalid_input', `${name} 必须是非空文本列表。`);
   }
   if (!accounts.includes(defaultAccount)) throw new AppError('invalid_input', '默认账户必须在账户列表中。');
-  if (!accounts.includes(body.ruleAccount)) throw new AppError('invalid_input', '特殊规则账户必须在账户列表中。');
+  if (body.customPrompt !== undefined && (typeof body.customPrompt !== 'string' || body.customPrompt.length > 2000)) throw new AppError('invalid_input', '自定义提示词必须是不超过 2000 字的文本。');
+  if (body.customPrompt === undefined && body.ruleAccount !== undefined && !accounts.includes(body.ruleAccount)) throw new AppError('invalid_input', '特殊规则账户必须在账户列表中。');
   if (!validDate(now)) throw new AppError('invalid_input', '当前时间须为 yyyy/MM/dd HH:mm。');
   return body;
 }
@@ -44,17 +45,19 @@ export function normalize(result, input) {
   const warnings = [];
   let account = result.account;
   if (!input.accounts.includes(account)) { account = input.defaultAccount; warnings.push('账户未识别，使用默认账户，请核对。'); }
-  if (result.accountRuleApplied === true) {
+  if (input.customPrompt === undefined && input.ruleAccount && result.accountRuleApplied === true) {
     if (!input.accounts.includes(input.ruleAccount)) throw new AppError('incomplete', '特殊规则指定的账户不在账户列表中。', 422);
     account = input.ruleAccount;
     warnings.push('已按 Apple Pay/0822 特殊规则选择账户，请核对。');
   }
+  if (input.customPrompt?.trim() && result.accountRuleApplied === true) warnings.push('模型已按自定义规则判断账户，请核对。');
   warnings.push('分类由模型判断，请核对后再入账。');
   return {type, amount: (type === '支出' ? -1 : 1) * Math.abs(cents) / 100, currency:'CNY', date, category, account, remark, warnings};
 }
 
 export function prompt(input) {
-  return `Extract one bookkeeping transaction. JSON only: {"date":"yyyy/MM/dd HH:mm","type":"收入/支出","amount":number,"category":"二级分类","remark":"备注","account":"账户","accountRuleApplied":boolean}. CNY; expense=-, income=+. Use transaction time, else DATE. category=exact item from EXP/INC only. account=exact ACC. Unknown→DEF. remark≤40 Chinese chars. RULE priority. Set accountRuleApplied true only if the source explicitly shows Apple Pay or 0822, otherwise false. Do not invent details. EXP:${JSON.stringify(input.expenseCategories)} INC:${JSON.stringify(input.incomeCategories)} ACC:${JSON.stringify(input.accounts)} DEF:${input.defaultAccount} RULE:ApplePay/0822→${input.ruleAccount || '无'} DATE:${input.now} JSON only.`;
+  const rule = input.customPrompt !== undefined ? input.customPrompt.trim() : input.ruleAccount ? `If the source explicitly shows Apple Pay or 0822, choose ${input.ruleAccount}.` : '';
+  return `Extract one bookkeeping transaction. JSON only: {"date":"yyyy/MM/dd HH:mm","type":"收入/支出","amount":number,"category":"二级分类","remark":"备注","account":"账户","accountRuleApplied":boolean}. CNY; expense=-, income=+. Use transaction time, else DATE. category=exact item from EXP/INC only. account=exact ACC. Unknown→DEF. remark≤40 Chinese chars. Apply CUSTOM RULE only when relevant; set accountRuleApplied true only when you applied it. Never invent details. EXP:${JSON.stringify(input.expenseCategories)} INC:${JSON.stringify(input.incomeCategories)} ACC:${JSON.stringify(input.accounts)} DEF:${JSON.stringify(input.defaultAccount)} CUSTOM RULE:${JSON.stringify(rule)} DATE:${input.now} JSON only.`;
 }
 
 export function buildIcostUrl(transaction) {
@@ -76,7 +79,7 @@ export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
-    : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay')) ? '（规则）' : '';
+    : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay') || warning.startsWith('模型已按自定义规则')) ? '（规则）' : '';
   return [
     '🧾  记账小票（Groq · Qwen 3.8 27B）',
     line,
