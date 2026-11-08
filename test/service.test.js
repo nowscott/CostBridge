@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze } from '../src/service.js';
-import { normalize, validateInput, buildIcostUrl, buildPreview } from '../src/core.js';
+import { normalize, validateInput, buildIcostUrl, buildPreview, prompt } from '../src/core.js';
 const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'};
 const config = {baseUrl:'https://example.test',model:'test',apiKey:'server-model-key'};
 const transaction = {date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡',accountRuleApplied:false};
@@ -106,3 +106,17 @@ test('captures quota headers from failed model calls', async () => {
  assert.equal(snapshot.limits.requestsReset,'1h');
  assert.ok(!Number.isNaN(Date.parse(snapshot.time)));
 });
+
+ test('optional custom prompt replaces the legacy account rule', async () => {
+  let sent;
+  const custom = {...input, customPrompt:'Apple Pay 使用储蓄卡'};
+  const result = await analyze(custom, config, async (url, options) => { sent = JSON.parse(options.body).messages[0].content[0].text; return fake({...transaction,accountRuleApplied:true})(); });
+  assert.match(sent, /Apple Pay 使用储蓄卡/);
+  assert.equal(result.transaction.account, '储蓄卡');
+  assert.match(result.transaction.warnings.join(' '), /自定义规则/);
+  const empty = validateInput({...input, customPrompt:''});
+  assert.match(prompt(empty), /CUSTOM RULE:""/);
+  assert.equal(normalize({...transaction,accountRuleApplied:true},empty).account,'储蓄卡');
+  assert.throws(()=>validateInput({...input, customPrompt:123}), /自定义提示词/);
+  assert.throws(()=>validateInput({...input, customPrompt:'字'.repeat(2001)}), /自定义提示词/);
+ });

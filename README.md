@@ -6,7 +6,7 @@
 
 快捷指令采集截图、iCost 分类和账户及当前时间，通过 HTTPS 发给本服务；服务把截图、名单和提示词发送给配置的Groq 接口。识别结果仅用于本次响应。部署商及模型服务商的处理、保留政策依其各自条款；本项目无法控制其平台日志。不要向公共仓库提交真实截图、账单、密钥或账户配置。
 
-模型可出错，特别是商品不明时分类只是推测。每次必须核对结果。ApplePay/0822 特殊账户规则由模型根据图片判断，返回提示供用户核对，不能当作确定性识别。账户未知时使用指定默认账户并提示。模型未给出有效金额、日期或分类时停止，不生成成功结果。
+模型可出错，特别是商品不明时分类只是推测。每次必须核对结果。可选的自定义提示词由模型结合账单判断，结果需要人工核对。旧版快捷指令的 Apple Pay/0822 规则仍可使用。账户未知时使用指定默认账户并提示。模型未给出有效金额、日期或分类时停止，不生成成功结果。
 
 ## 更新与发布
 
@@ -21,7 +21,7 @@
 `POST /api/analyze`，头部 `Authorization: Bearer <服务访问凭据>`、`Content-Type: application/json`。模型密钥由服务端提供，无需在请求中传入。一次传 `image`（JPEG 文件的纯 Base64，不含前缀和换行）或 `text`，二选一。示例均为虚构数据：
 
 ```json
-{"text":"午餐 12.50 元","expenseCategories":["餐饮","其他"],"incomeCategories":["工资"],"accounts":["信用卡","储蓄卡"],"defaultAccount":"信用卡","ruleAccount":"信用卡","now":"2026/11/07 16:06"}
+{"text":"午餐 12.50 元","expenseCategories":["餐饮","其他"],"incomeCategories":["工资"],"accounts":["信用卡","储蓄卡"],"defaultAccount":"信用卡","customPrompt":"Apple Pay 使用信用卡","now":"2026/11/07 16:06"}
 ```
 
 成功示例：
@@ -29,6 +29,8 @@
 ```json
 {"ok":true,"transaction":{"type":"支出","amount":-12.5,"currency":"CNY","date":"2026/11/07 16:06","category":"餐饮","account":"信用卡","remark":"午餐","warnings":["账户未识别，使用默认账户，请核对。","分类由模型判断，请核对后再入账。"]},"icostUrl":"iCost://expense?amount=12.5&currency=CNY&..."}
 ```
+
+请求可选设置 `customPrompt` 为自定义规则文本（最多 2000 字，留空表示不使用额外规则），例如“Apple Pay 使用信用卡”。规则由模型判断，账户仍须来自账户列表。旧版 `ruleAccount` 在未提供 `customPrompt` 时继续启用原 Apple Pay/0822 规则。
 
 请求可设置 `showTokens` 控制小票是否显示模型返回的总 token 数，未设置时默认显示；传入 `false`、`0`、`"false"`、`"关"` 或 `"off"` 均可关闭。若模型未返回用量，小票显示“未提供”。
 
@@ -43,8 +45,8 @@
 保留原有可用版本，先创建新指令测试：
 
 1. 在付款详情页触发指令，用“截屏”获取当前屏幕，转为 JPEG，按需缩小图片后使用 Base64 编码，并设置为不换行。
-2. 按现有指令查找支出二级分类、收入分类和账户，整理为文本列表。设置默认账户和 ApplePay/0822 对应账户，确保均存在于账户列表中；当前时间格式化为 `yyyy/MM/dd HH:mm`。
-3. 建立 JSON 字典，使用接口字段 `image`、`expenseCategories`、`incomeCategories`、`accounts`、`defaultAccount`、`ruleAccount`、`now`，用“获取 URL 内容”向服务发 POST 请求。请求头添加 `Content-Type: application/json` 和 `Authorization: Bearer <你的服务访问凭据>`。此凭据只用于访问 CostBridge，不是模型密钥。
+2. 按现有指令查找支出二级分类、收入分类和账户，整理为文本列表。设置存在于账户列表中的默认账户，并可选填写自定义提示词；当前时间格式化为 `yyyy/MM/dd HH:mm`。
+3. 建立 JSON 字典，使用接口字段 `image`、`expenseCategories`、`incomeCategories`、`accounts`、`defaultAccount`、`customPrompt`、`now`，用“获取 URL 内容”向服务发 POST 请求。请求头添加 `Content-Type: application/json` 和 `Authorization: Bearer <你的服务访问凭据>`。此凭据只用于访问 CostBridge，不是模型密钥。
 4. 如网络动作报错或 `ok` 不为真，显示错误并停止。成功时从 `transaction` 展示收支、金额、时间、账户、分类、备注和所有 `warnings`，提供确认和取消选项。
 5. 选择确认后，打开响应中的 `icostUrl`；该链接根据 iCost 官方文档生成。先用虚构数据检查生成的链接，不要打开入账链接；确认无误后由你决定是否启用。打开链接或返回快捷指令均不能单独证明记账成功。
 
