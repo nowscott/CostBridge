@@ -73,3 +73,13 @@ test('separates Unkey outages, rate limiting and missing configuration', async (
   });
   assert.equal(called, false);
 });
+
+test('falls back for inherited property names in the key code', async () => {
+  for (const code of ['constructor', '__proto__', 'toString']) {
+    await assert.rejects(verifyAccessKey(accessKey, { rootKey, fetcher: async () => reply({ data: { valid: false, code } }) }), error => {
+      assert.equal(error.status, 401);
+      assert.equal(error.message, '访问凭据无效或已停用。');
+      return true;
+    });
+  }
+});
