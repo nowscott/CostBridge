@@ -14,6 +14,7 @@ test('serves the landing page and every referenced asset including the favicon',
     ['/', 'text/html'],
     ['/style.css', 'text/css'],
     ['/app.js', 'text/javascript'],
+    ['/quota-estimate.js', 'text/javascript'],
     ['/favicon.svg', 'image/svg+xml']
   ];
   for (const [url, type] of routes) {
