@@ -14,5 +14,11 @@ export async function analyze(body, config, fetcher = fetch) {
   let result, payload;
   try { payload = await response.json(); result = JSON.parse(payload.choices[0].message.content); }
   catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
-  return {transaction: normalize(result, input), usage: payload.usage};
+  const rateLimits = response.headers ? {
+    dailyRequestsRemaining: response.headers.get('x-ratelimit-remaining-requests'),
+    dailyRequestsLimit: response.headers.get('x-ratelimit-limit-requests'),
+    tokensPerMinuteRemaining: response.headers.get('x-ratelimit-remaining-tokens'),
+    tokensPerMinuteLimit: response.headers.get('x-ratelimit-limit-tokens')
+  } : null;
+  return {transaction: normalize(result, input), usage: payload.usage, rateLimits};
 }
