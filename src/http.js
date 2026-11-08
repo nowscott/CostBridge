@@ -38,11 +38,11 @@ export async function handle(req, res, logCall = () => {}) {
     record.model = 'qwen/qwen3.8-27b';
     record.stage = 'model';
     const modelStarted = stageStarted = performance.now();
-    const {transaction, usage, rateLimits} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:'https://api.groq.com/openai/v1',model:'qwen/qwen3.8-27b'});
+    const {transaction, usage, rateLimits} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:'https://api.groq.com/openai/v1',model:'qwen/qwen3.8-27b'}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
     record.modelMs = Math.round(performance.now() - modelStarted);
     record.usage = usage ? {promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens} : undefined;
     record.stage = 'complete';
-    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, usage, body.showTokens, (performance.now() - started) / 1000),icostUrl:buildIcostUrl(transaction),rateLimits});
+    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, usage, body.showTokens, (performance.now() - started) / 1000),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:record.rateLimitsTime});
   } catch (error) {
     if (record.stage === 'auth') record.authMs = Math.round(performance.now() - stageStarted);
     if (record.stage === 'model') record.modelMs = Math.round(performance.now() - stageStarted);
