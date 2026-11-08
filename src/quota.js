@@ -1,5 +1,4 @@
 import { AppError } from './core.js';
-import { verifyAccessKey } from './auth.js';
 import { readLatestRateLimits } from './call-log.js';
 
 export async function handleQuota(req, res, read = readLatestRateLimits) {
@@ -7,9 +6,6 @@ export async function handleQuota(req, res, read = readLatestRateLimits) {
   res.setHeader('cache-control', 'no-store');
   try {
     if (req.method !== 'GET') throw new AppError('method_not_allowed', '请使用 GET。', 405);
-    const authorization = req.headers.authorization || '';
-    if (!authorization.startsWith('Bearer ') || !authorization.slice(7)) throw new AppError('unauthorized', '访问凭据无效。', 401);
-    await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
     if (!process.env.CALLLOG_DATABASE_URL) throw new AppError('configuration_error', '限额记录尚未配置。', 503);
     const snapshot = await read();
     res.statusCode = 200;
