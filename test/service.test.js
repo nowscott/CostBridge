@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze } from '../src/service.js';
 import { normalize, validateInput, buildIcostUrl, buildPreview, prompt } from '../src/core.js';
+import { createRequire } from 'node:module';
 const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'};
 const config = {baseUrl:'https://example.test',model:'test',apiKey:'server-model-key'};
 const transaction = {date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡',accountRuleApplied:false};
@@ -74,6 +75,12 @@ test('receipt displays the daily request snapshot followed by request time', () 
  assert.doesNotMatch(preview,/tokens|消耗/);
  assert.match(buildPreview(tx,null),/今日请求剩余  未提供/);
  assert.match(buildPreview(tx,{dailyRequestsRemaining:'0',dailyRequestsLimit:'1000'}),/今日请求剩余  0 \/ 1000 次/);
+});
+
+test('receipt ends with the service signature and version', () => {
+ const version = createRequire(import.meta.url)('../package.json').version;
+ const styledVersion = version.replace(/[0-9]/g, digit => [...'𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'][Number(digit)]);
+ assert.ok(buildPreview(normalize(transaction,input)).endsWith(`确认以上信息后入账？\n\n𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓬𝓸𝓼𝓽𝓫𝓻𝓲𝓭𝓰𝓮 · 𝓿${styledVersion}`));
 });
 
 test('accepts JSON wrapped in a code fence from the model', async () => {

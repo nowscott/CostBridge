@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+
+const version = createRequire(import.meta.url)('../package.json').version;
+
 export class AppError extends Error {
   constructor(code, message, status = 400) { super(message); this.code = code; this.status = status; }
 }
@@ -93,6 +97,8 @@ export function buildPreview(tx, rateLimits, elapsedSeconds) {
     `📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`,
     ...(elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
     line,
-    '确认以上信息后入账？'
+    '确认以上信息后入账？',
+    '',
+    `𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓬𝓸𝓼𝓽𝓫𝓻𝓲𝓭𝓰𝓮 · 𝓿${version.replace(/[0-9]/g, digit => [...'𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'][Number(digit)])}`
   ].join('\n');
 }
