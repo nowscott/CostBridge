@@ -69,3 +69,31 @@ test('token display can be enabled or disabled and uses provider usage', async (
  assert.match(buildPreview(result.transaction,result.usage,true,1.234),/123 tokens · 服务耗时 1\.23 秒/);
  assert.match(buildPreview(result.transaction,result.usage,false,1.234),/服务耗时  1\.23 秒/);
 });
+
+test('accepts JSON wrapped in a code fence from the model', async () => {
+ const fetcher = async () => ({ok:true,json:async()=>({choices:[{message:{content:'```json\n'+JSON.stringify(transaction)+'\n```'}}]})});
+ const result = await analyze(input,config,fetcher);
+ assert.equal(result.transaction.amount,-12.5);
+});
+
+test('rejects empty or malformed model content as model_invalid', async () => {
+ const payloads = [{},{choices:[]},{choices:[{message:{content:''}}]},{choices:[{message:{content:{}}}]},{choices:[{message:{content:'not json'}}]}];
+ for (const payload of payloads) {
+  await assert.rejects(analyze(input,config,async()=>({ok:true,json:async()=>payload})), error => error.code === 'model_invalid' && error.status === 502);
+ }
+});
+
+test('rounds amounts to cents before building the iCost link', () => {
+ const result = normalize({...transaction,amount:0.30000000000000004},input);
+ assert.equal(result.amount,-0.3);
+ assert.equal(new URL(buildIcostUrl(result)).searchParams.get('amount'),'0.3');
+ const nearlyWhole = normalize({...transaction,amount:12.5000000001},input);
+ assert.equal(nearlyWhole.amount,-12.5);
+ assert.equal(new URL(buildIcostUrl(nearlyWhole)).searchParams.get('amount'),'12.5');
+});
+
+test('token display accepts the values a shortcut may send', () => {
+ const tx = normalize(transaction,input);
+ for (const value of [false,0,'false','0','关','off','OFF','no','否']) assert.doesNotMatch(buildPreview(tx,{total_tokens:123},value),/消耗/);
+ for (const value of [true,1,'true','开',undefined]) assert.match(buildPreview(tx,{total_tokens:123},value),/123 tokens/);
+});

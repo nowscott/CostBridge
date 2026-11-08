@@ -11,9 +11,9 @@ export async function analyze(body, config, fetcher = fetch) {
     response = await fetcher(`${config.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.apiKey}`}, body:JSON.stringify({model:config.model, reasoning_effort:'none', temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})});
   } catch { throw new AppError('model_unavailable', '模型服务连接失败，请稍后再试。', 502); }
   if (!response.ok) throw new AppError('model_error', `模型服务请求失败（HTTP ${response.status}）。`, 502);
-  let result, payload;
-  try { payload = await response.json(); result = JSON.parse(payload.choices[0].message.content); }
-  catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
+  let payload;
+  try { payload = await response.json(); } catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
+  const result = parseModelContent(payload);
   const rateLimits = response.headers ? {
     dailyRequestsRemaining: response.headers.get('x-ratelimit-remaining-requests'),
     dailyRequestsLimit: response.headers.get('x-ratelimit-limit-requests'),
@@ -21,4 +21,12 @@ export async function analyze(body, config, fetcher = fetch) {
     tokensPerMinuteLimit: response.headers.get('x-ratelimit-limit-tokens')
   } : null;
   return {transaction: normalize(result, input), usage: payload.usage, rateLimits};
+}
+
+function parseModelContent(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string' || !content.trim()) throw new AppError('model_invalid', '模型返回内容无法识别。', 502);
+  const text = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try { return JSON.parse(text); }
+  catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
 }

@@ -36,7 +36,8 @@ function validDate(s) {
 export function normalize(result, input) {
   if (!result || typeof result !== 'object' || Array.isArray(result)) throw new AppError('model_invalid', '模型返回内容无法识别。', 502);
   const {type, amount, date, category, remark} = result;
-  if (!['收入','支出'].includes(type) || typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 100000000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6 || !validDate(date)) throw new AppError('incomplete', '金额、收支类型或时间不完整，请核对原始账单。', 422);
+  const cents = typeof amount === 'number' && Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
+  if (!['收入','支出'].includes(type) || !Number.isInteger(cents) || cents === 0 || Math.abs(amount) > 100000000 || Math.abs(amount * 100 - cents) > 1e-6 || !validDate(date)) throw new AppError('incomplete', '金额、收支类型或时间不完整，请核对原始账单。', 422);
   const categories = type === '收入' ? input.incomeCategories : input.expenseCategories;
   if (!categories.includes(category)) throw new AppError('incomplete', '无法确定有效分类，请核对原始账单。', 422);
   if (typeof remark !== 'string' || [...remark].length > 40) throw new AppError('incomplete', '备注不符合要求，请核对原始账单。', 422);
@@ -49,7 +50,7 @@ export function normalize(result, input) {
     warnings.push('已按 Apple Pay/0822 特殊规则选择账户，请核对。');
   }
   warnings.push('分类由模型判断，请核对后再入账。');
-  return {type, amount: (type === '支出' ? -1 : 1) * Math.abs(amount), currency:'CNY', date, category, account, remark, warnings};
+  return {type, amount: (type === '支出' ? -1 : 1) * Math.abs(cents) / 100, currency:'CNY', date, category, account, remark, warnings};
 }
 
 export function prompt(input) {
@@ -61,6 +62,14 @@ export function buildIcostUrl(transaction) {
   const [date, time] = transaction.date.split(' ');
   const params = new URLSearchParams({amount:String(Math.abs(transaction.amount)), currency:transaction.currency, account:transaction.account, category:transaction.category, date:date.replaceAll('/','.'), time, remark:transaction.remark});
   return `iCost://${path}?${params}`;
+}
+
+export function shouldShowTokens(showTokens) {
+  if (showTokens === undefined || showTokens === null) return true;
+  if (typeof showTokens === 'boolean') return showTokens;
+  if (typeof showTokens === 'number') return showTokens !== 0;
+  if (typeof showTokens === 'string') return !['false','0','关','off','no','否'].includes(showTokens.trim().toLowerCase());
+  return true;
 }
 
 export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
@@ -80,7 +89,7 @@ export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
-    ...(showTokens === false || showTokens === '关'
+    ...(!shouldShowTokens(showTokens)
       ? (elapsedSeconds === undefined ? [] : [`⏱️ 服务耗时  ${elapsedSeconds.toFixed(2)} 秒`])
       : [`⚙️ 消耗  ${Number.isInteger(usage?.total_tokens) ? `${usage.total_tokens} tokens` : '未提供'}${elapsedSeconds === undefined ? '' : ` · 服务耗时 ${elapsedSeconds.toFixed(2)} 秒`}`]),
     line,
