@@ -20,7 +20,6 @@ export function validateInput(body) {
   for (const [name, value] of Object.entries({ expenseCategories, incomeCategories, accounts })) {
     if (!Array.isArray(value) || !value.length || value.some(v => typeof v !== 'string' || !v.trim())) throw new AppError('invalid_input', `${name} 必须是非空文本列表。`);
   }
-  if (!accounts.includes(defaultAccount)) throw new AppError('invalid_input', '默认账户必须在账户列表中。');
   if (body.customPrompt !== undefined && (typeof body.customPrompt !== 'string' || body.customPrompt.length > 2000)) throw new AppError('invalid_input', '自定义提示词必须是不超过 2000 字的文本。');
   if (body.customPrompt === undefined && body.ruleAccount !== undefined && !accounts.includes(body.ruleAccount)) throw new AppError('invalid_input', '特殊规则账户必须在账户列表中。');
   if (!validDate(now)) throw new AppError('invalid_input', '当前时间须为 yyyy/MM/dd HH:mm。');
@@ -43,12 +42,18 @@ export function normalize(result, input) {
   if (!categories.includes(category)) throw new AppError('incomplete', '无法确定有效分类，请核对原始账单。', 422);
   if (typeof remark !== 'string' || [...remark].length > 40) throw new AppError('incomplete', '备注不符合要求，请核对原始账单。', 422);
   const warnings = [];
+  const validDefault = input.accounts.includes(input.defaultAccount);
+  if (!validDefault) warnings.push('默认账户不在账户列表中，请检查快捷指令设置。');
   let account = result.account;
-  if (!input.accounts.includes(account)) { account = input.defaultAccount; warnings.push('账户未识别，使用默认账户，请核对。'); }
   if (input.customPrompt === undefined && input.ruleAccount && result.accountRuleApplied === true) {
     if (!input.accounts.includes(input.ruleAccount)) throw new AppError('incomplete', '特殊规则指定的账户不在账户列表中。', 422);
     account = input.ruleAccount;
     warnings.push('已按 Apple Pay/0822 特殊规则选择账户，请核对。');
+  }
+  if (!input.accounts.includes(account)) {
+    if (!validDefault) throw new AppError('incomplete', '账户未识别，且默认账户不在账户列表中，请检查快捷指令设置后重试。', 422);
+    account = input.defaultAccount;
+    warnings.push('账户未识别，使用默认账户，请核对。');
   }
   if (input.customPrompt?.trim() && result.accountRuleApplied === true) warnings.push('模型已按自定义规则判断账户，请核对。');
   warnings.push('分类由模型判断，请核对后再入账。');
@@ -57,7 +62,7 @@ export function normalize(result, input) {
 
 export function prompt(input) {
   const rule = input.customPrompt !== undefined ? input.customPrompt.trim() : input.ruleAccount ? `If the source explicitly shows Apple Pay or 0822, choose ${input.ruleAccount}.` : '';
-  return `Extract one bookkeeping transaction. JSON only: {"date":"yyyy/MM/dd HH:mm","type":"收入/支出","amount":number,"category":"二级分类","remark":"备注","account":"账户","accountRuleApplied":boolean}. CNY; expense=-, income=+. Use transaction time, else DATE. category=exact item from EXP/INC only. account=exact ACC. Unknown→DEF. remark≤40 Chinese chars. Apply CUSTOM RULE only when relevant; set accountRuleApplied true only when you applied it. Never invent details. EXP:${JSON.stringify(input.expenseCategories)} INC:${JSON.stringify(input.incomeCategories)} ACC:${JSON.stringify(input.accounts)} DEF:${JSON.stringify(input.defaultAccount)} CUSTOM RULE:${JSON.stringify(rule)} DATE:${input.now} JSON only.`;
+  return `Extract one bookkeeping transaction. JSON only: {"date":"yyyy/MM/dd HH:mm","type":"收入/支出","amount":number,"category":"二级分类","remark":"备注","account":"账户","accountRuleApplied":boolean}. CNY; expense=-, income=+. Use transaction time, else DATE. category=exact item from EXP/INC only. account=exact ACC. Unknown→DEF. remark≤40 Chinese chars. Apply CUSTOM RULE only when relevant; set accountRuleApplied true only when you applied it. Never invent details. EXP:${JSON.stringify(input.expenseCategories)} INC:${JSON.stringify(input.incomeCategories)} ACC:${JSON.stringify(input.accounts)} DEF:${JSON.stringify(input.accounts.includes(input.defaultAccount) ? input.defaultAccount : '')} CUSTOM RULE:${JSON.stringify(rule)} DATE:${input.now} JSON only.`;
 }
 
 export function buildIcostUrl(transaction) {
@@ -81,6 +86,7 @@ export function buildPreview(tx, rateLimits, elapsedSeconds) {
     line,
     `⏰ 时间  ${tx.date}`,
     `💳 账户  ${tx.account}${accountNote}`,
+    ...tx.warnings.filter(warning => warning.startsWith('默认账户不在')).map(warning => `⚠️ ${warning}`),
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
