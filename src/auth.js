@@ -23,7 +23,11 @@ export async function verifyAccessKey(accessKey, { rootKey, fetcher = fetch } = 
     throw new AppError('auth_unavailable', '授权验证服务连接失败，请稍后再试。', 503);
   }
   if (response.status === 429) throw new AppError('auth_unavailable', '授权验证服务繁忙，请稍后再试。', 503);
-  if (!response.ok) throw new AppError('auth_unavailable', '授权验证服务不可用，请稍后再试。', 503);
+  if (!response.ok) {
+    const error = new AppError('auth_unavailable', '授权验证服务不可用，请稍后再试。', 503);
+    error.upstreamStatus = response.status;
+    throw error;
+  }
   let payload;
   try { payload = await response.json(); } catch {
     throw new AppError('auth_unavailable', '授权验证服务返回内容无法识别，请稍后再试。', 503);

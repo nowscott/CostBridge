@@ -10,7 +10,11 @@ export async function analyze(body, config, fetcher = fetch) {
   try {
     response = await fetcher(`${config.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.apiKey}`}, body:JSON.stringify({model:config.model, reasoning_effort:'none', temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})});
   } catch { throw new AppError('model_unavailable', '模型服务连接失败，请稍后再试。', 502); }
-  if (!response.ok) throw new AppError('model_error', `模型服务请求失败（HTTP ${response.status}）。`, 502);
+  if (!response.ok) {
+    const error = new AppError('model_error', `模型服务请求失败（HTTP ${response.status}）。`, 502);
+    error.upstreamStatus = response.status;
+    throw error;
+  }
   let payload;
   try { payload = await response.json(); } catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
   const result = parseModelContent(payload);
