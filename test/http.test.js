@@ -114,3 +114,25 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
   else process.env.GROQ_API_KEY = previousModel;
  }
 });
+
+test('records diagnostic metadata without request content or credentials after responding', async () => {
+  const previousRoot = process.env.UNKEY_ROOT_KEY, originalFetch = globalThis.fetch;
+  process.env.UNKEY_ROOT_KEY = 'root-secret';
+  globalThis.fetch = async () => ({ok:true,status:200,json:async()=>({data:{valid:false}})});
+  try {
+    let ended = false, record;
+    const res = {setHeader() {}, end() { ended = true; }};
+    await handle({method:'POST',headers:{authorization:'Bearer user-secret'},body:{text:'private-bill'}}, res, value => {
+      assert.equal(ended,true);
+      record = value;
+    });
+    assert.equal(record.status,401);
+    assert.equal(record.stage,'auth');
+    assert.equal(typeof record.authMs,'number');
+    assert.doesNotMatch(JSON.stringify(record),/root-secret|user-secret|private-bill/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousRoot === undefined) delete process.env.UNKEY_ROOT_KEY;
+    else process.env.UNKEY_ROOT_KEY = previousRoot;
+  }
+});

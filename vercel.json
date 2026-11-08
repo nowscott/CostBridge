@@ -1,1 +1,11 @@
-{"regions":["sin1"]}
+{
+  "regions": [
+    "sin1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup-call-logs",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
