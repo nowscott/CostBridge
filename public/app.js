@@ -1,18 +1,26 @@
+import { estimateQuota } from './quota-estimate.js';
+
 const quota = document.querySelector('#quota');
+let latestSnapshot = null;
 function showQuota(snapshot) {
   if (!snapshot) { quota.textContent = '暂无限额记录。'; return; }
+  latestSnapshot = snapshot;
   const limits = snapshot.limits;
-  for (const [name, remaining, limit, reset] of [
+  let hasEstimate = false;
+  for (let [name, remaining, limit, reset] of [
     ['requests', limits.dailyRequestsRemaining, limits.dailyRequestsLimit, limits.requestsReset],
     ['tokens', limits.tokensPerMinuteRemaining, limits.tokensPerMinuteLimit, limits.tokensReset]
   ]) {
+    const estimate = estimateQuota(remaining, limit, reset, snapshot.time);
+    remaining = estimate.remaining;
+    hasEstimate ||= estimate.estimated;
     const available = remaining != null && limit != null;
     document.querySelector(`#${name}-remaining`).textContent = available ? Number(remaining).toLocaleString('zh-CN') : '—';
     document.querySelector(`#${name}-limit`).textContent = available ? `/ ${Number(limit).toLocaleString('zh-CN')}` : '';
     document.querySelector(`#${name}-bar`).style.width = available && Number(limit) > 0 ? `${Math.max(0, Math.min(100, (1 - Number(remaining) / Number(limit)) * 100))}%` : '0%';
-    document.querySelector(`#${name}-reset`).textContent = reset ? `${name === 'requests' ? '日请求' : 'Token'}：快照后 ${reset} 恢复` : `${name === 'requests' ? '日请求' : 'Token'}：恢复时间未提供`;
+    document.querySelector(`#${name}-reset`).textContent = reset ? `${name === 'requests' ? '日请求' : 'Token'}：${estimate.estimated ? '预计已恢复' : `快照后 ${reset} 恢复`}` : `${name === 'requests' ? '日请求' : 'Token'}：恢复时间未提供`;
   }
-  quota.textContent = `快照 ${new Date(snapshot.time).toLocaleString('zh-CN')}`;
+  quota.textContent = `${hasEstimate ? '含预计恢复 · ' : ''}快照 ${new Date(snapshot.time).toLocaleString('zh-CN')}`;
 }
 async function refreshQuota() {
   try {
@@ -23,6 +31,7 @@ async function refreshQuota() {
   } catch { quota.textContent = '限额记录暂时不可用，请稍后再试。'; }
 }
 refreshQuota();
+setInterval(() => { if (!document.hidden && latestSnapshot) showQuota(latestSnapshot); }, 1000);
 setInterval(() => { if (!document.hidden) refreshQuota(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshQuota(); });
 const form = document.querySelector('#form');
