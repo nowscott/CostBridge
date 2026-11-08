@@ -8,8 +8,11 @@ export async function analyze(body, config, fetcher = fetch) {
   else content.push({type:'text', text:input.text});
   let response;
   try {
-    response = await fetcher(`${config.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.apiKey}`}, body:JSON.stringify({model:config.model, enable_thinking:false, temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})});
-  } catch { throw new AppError('model_unavailable', '模型服务连接失败，请稍后再试。', 502); }
+    response = await fetcher(`${config.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.apiKey}`}, body:JSON.stringify({model:config.model, ...(config.groq ? {reasoning_effort:'none'} : {enable_thinking:false}), temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})});
+  } catch (error) {
+    console.error('Model connection failed:', error.cause?.code || error.name);
+    throw new AppError('model_unavailable', '模型服务连接失败，请稍后再试。', 502);
+  }
   if (!response.ok) throw new AppError('model_error', `模型服务请求失败（HTTP ${response.status}）。`, 502);
   let result, payload;
   try { payload = await response.json(); result = JSON.parse(payload.choices[0].message.content); }
