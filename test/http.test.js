@@ -95,7 +95,7 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
  process.env.GROQ_API_KEY = 'test-model-key';
  globalThis.fetch = async (url) => String(url).includes('unkey')
   ? {ok:true,status:200,json:async()=>({data:{valid:true}})}
-  : {ok:true,status:200,json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡'})}}],usage:{total_tokens:123}})};
+  : {ok:true,status:200,headers:new Headers({'x-ratelimit-remaining-requests':'987','x-ratelimit-limit-requests':'1000'}),json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡'})}}],usage:{total_tokens:123}})};
  try {
   let payload;
   const response = {setHeader() {}, end(data) { payload = JSON.parse(data); }};
@@ -104,6 +104,8 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
   assert.equal(payload.ok,true);
   assert.equal(payload.transaction.amount,-12.5);
   assert.match(payload.preview,/12\.50/);
+  assert.match(payload.preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时/);
+  assert.doesNotMatch(payload.preview,/123 tokens/);
   assert.match(payload.icostUrl,/^iCost:\/\/expense\?/);
   assert.equal(payload.shortcutResult,'OK');
  } finally {

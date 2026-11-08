@@ -67,15 +67,7 @@ export function buildIcostUrl(transaction) {
   return `iCost://${path}?${params}`;
 }
 
-export function shouldShowTokens(showTokens) {
-  if (showTokens === undefined || showTokens === null) return true;
-  if (typeof showTokens === 'boolean') return showTokens;
-  if (typeof showTokens === 'number') return showTokens !== 0;
-  if (typeof showTokens === 'string') return !['false','0','关','off','no','否'].includes(showTokens.trim().toLowerCase());
-  return true;
-}
-
-export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
+export function buildPreview(tx, rateLimits, elapsedSeconds) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
@@ -92,9 +84,8 @@ export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
-    ...(!shouldShowTokens(showTokens)
-      ? (elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${elapsedSeconds.toFixed(2)} 秒`])
-      : [`⚙️ 消耗  ${Number.isInteger(usage?.total_tokens) ? `${usage.total_tokens} tokens` : '未提供'}${elapsedSeconds === undefined ? '' : ` · 请求耗时 ${elapsedSeconds.toFixed(2)} 秒`}`]),
+    `📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`,
+    ...(elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
     line,
     '确认以上信息后入账？'
   ].join('\n');
