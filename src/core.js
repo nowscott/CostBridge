@@ -80,8 +80,9 @@ export function buildPreview(tx, usage, showTokens = true, elapsedSeconds) {
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
-    ...(showTokens === false || showTokens === '关' ? [] : [`⚙️ 消耗  ${Number.isInteger(usage?.total_tokens) ? `${usage.total_tokens} tokens` : '未提供'}`]),
-    ...(elapsedSeconds === undefined ? [] : [`⏱️ 服务耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
+    ...(showTokens === false || showTokens === '关'
+      ? (elapsedSeconds === undefined ? [] : [`⏱️ 服务耗时  ${elapsedSeconds.toFixed(2)} 秒`])
+      : [`⚙️ 消耗  ${Number.isInteger(usage?.total_tokens) ? `${usage.total_tokens} tokens` : '未提供'}${elapsedSeconds === undefined ? '' : ` · 服务耗时 ${elapsedSeconds.toFixed(2)} 秒`}`]),
     line,
     '确认以上信息后入账？'
   ].join('\n');
