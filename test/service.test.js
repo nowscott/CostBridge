@@ -48,6 +48,7 @@ test('accepts the iCost shortcut text lists and supplies Shanghai current time',
 
 test('receipt shows the transaction and identifies a default account', () => {
  const preview = buildPreview(normalize({...transaction,account:'未知'},input));
+ assert.match(preview,/记账小票（Groq · Qwen 3\.8 27B）/);
  assert.match(preview,/12\.50/); assert.match(preview,/餐饮/); assert.match(preview,/信用卡（默认）/);
  assert.match(preview, /支出  −12\.50\u00a0CNY/);
  assert.doesNotMatch(preview,/⚠️|注意事项/);

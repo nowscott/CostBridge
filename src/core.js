@@ -69,7 +69,7 @@ export function buildPreview(tx, usage, showTokens = true) {
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
     : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay')) ? '（规则）' : '';
   return [
-    '🧾  记账小票',
+    '🧾  记账小票（Groq · Qwen 3.8 27B）',
     line,
     '',
     `${tx.type}  ${amount}\u00a0CNY`,
