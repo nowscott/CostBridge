@@ -16,6 +16,11 @@ test('uses the server model key instead of a client-supplied key', async () => {
  assert.equal(authorization,'Bearer server-model-key');
  await assert.rejects(analyze(input,{...config,apiKey:''},fake(transaction)), /服务尚未配置 Groq API 密钥/);
 });
+test('returns Groq rate-limit headers alongside the result', async () => {
+ const headers = new Headers({'x-ratelimit-remaining-requests':'987','x-ratelimit-limit-requests':'1000','x-ratelimit-remaining-tokens':'6500','x-ratelimit-limit-tokens':'8000'});
+ const result = await analyze(input,config,async()=>({...(await fake(transaction)()),headers}));
+ assert.deepEqual(result.rateLimits,{dailyRequestsRemaining:'987',dailyRequestsLimit:'1000',tokensPerMinuteRemaining:'6500',tokensPerMinuteLimit:'8000'});
+});
 test('income sign and default account are explicit', () => {
  const result = normalize({...transaction,type:'收入',amount:-3,category:'工资',account:'未知'},input);
  assert.equal(result.amount,3); assert.equal(result.account,'信用卡'); assert.match(result.warnings[0],/默认账户/);
