@@ -95,18 +95,19 @@ test('receipt shows the transaction and identifies a default account', () => {
  const preview = buildPreview(normalize({...transaction,account:'未知'},input));
  assert.match(preview,/记账小票〔𝓖𝓻𝓸𝓺 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝟐𝟕𝓑〕/);
  assert.match(preview,/⏰ 时间  𝟐𝟎𝟐𝟔\/𝟏𝟏\/𝟎𝟕 𝟏𝟓:𝟑𝟎/);
- assert.match(preview,/12\.50/); assert.match(preview,/餐饮/); assert.match(preview,/信用卡（默认）/);
- assert.match(preview, /支出  −12\.50\u00a0CNY/);
+ assert.match(preview,/𝟏𝟐\.𝟓𝟎/); assert.match(preview,/餐饮/); assert.match(preview,/信用卡（默认）/);
+ assert.match(preview, /支出  −𝟏𝟐\.𝟓𝟎\u00a0𝓒𝓝𝓨/);
  assert.doesNotMatch(preview,/⚠️|注意事项/);
 });
 
 test('receipt displays the daily request snapshot followed by request time', () => {
  const tx = normalize(transaction,input);
  const preview = buildPreview(tx,{dailyRequestsRemaining:'987',dailyRequestsLimit:'1000'},1.234);
- assert.match(preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时  𝟏\.𝟐𝟑 秒/);
+ assert.match(preview,/今日请求剩余  𝟗𝟖𝟕 \/ 𝟏𝟎𝟎𝟎 次\n⏱️ 请求耗时  𝟏\.𝟐𝟑 秒/);
  assert.doesNotMatch(preview,/tokens|消耗/);
  assert.match(buildPreview(tx,null),/今日请求剩余  未提供/);
- assert.match(buildPreview(tx,{dailyRequestsRemaining:'0',dailyRequestsLimit:'1000'}),/今日请求剩余  0 \/ 1000 次/);
+ assert.match(buildPreview(tx,{dailyRequestsRemaining:'0',dailyRequestsLimit:'1000'}),/今日请求剩余  𝟎 \/ 𝟏𝟎𝟎𝟎 次/);
+ assert.doesNotMatch(buildPreview({...tx,account:'Card 123',remark:'Apple Pay 456'}),/[A-Za-z0-9]/);
 });
 
 test('receipt ends with the service signature and version', () => {

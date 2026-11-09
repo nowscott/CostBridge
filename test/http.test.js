@@ -105,8 +105,8 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
   assert.equal(record.keyId,'key_example_123');
   assert.doesNotMatch(JSON.stringify(record),/test-root-key|test-model-key|午餐/);
   assert.equal(payload.transaction.amount,-12.5);
-  assert.match(payload.preview,/12\.50/);
-  assert.match(payload.preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时/);
+  assert.match(payload.preview,/𝟏𝟐\.𝟓𝟎/);
+  assert.match(payload.preview,/今日请求剩余  𝟗𝟖𝟕 \/ 𝟏𝟎𝟎𝟎 次\n⏱️ 请求耗时/);
   assert.doesNotMatch(payload.preview,/123 tokens/);
   assert.match(payload.icostUrl,/^iCost:\/\/expense\?/);
   assert.equal(payload.shortcutResult,'OK');
