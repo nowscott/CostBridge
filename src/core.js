@@ -79,7 +79,8 @@ export function buildIcostUrl(transaction) {
 export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = false) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
-  const styledNumbers = text => text.replace(/[0-9]/g, digit => [...'𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'][Number(digit)]);
+  const plain = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const styled = [...'𝓐𝓑𝓒𝓓𝓔𝓕𝓖𝓗𝓘𝓙𝓚𝓛𝓜𝓝𝓞𝓟𝓠𝓡𝓢𝓣𝓤𝓥𝓦𝓧𝓨𝓩𝓪𝓫𝓬𝓭𝓮𝓯𝓰𝓱𝓲𝓳𝓴𝓵𝓶𝓷𝓸𝓹𝓺𝓻𝓼𝓽𝓾𝓿𝔀𝔁𝔂𝔃𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'];
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
     : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay') || warning.startsWith('模型已按自定义规则')) ? '（规则）' : '';
   return [
@@ -89,17 +90,17 @@ export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = fals
     `${tx.type}  ${amount}\u00a0CNY`,
     '',
     line,
-    `⏰ 时间  ${styledNumbers(tx.date)}`,
+    `⏰ 时间  ${tx.date}`,
     `💳 账户  ${tx.account}${accountNote}`,
     ...tx.warnings.filter(warning => warning.startsWith('默认账户不在')).map(warning => `⚠️ ${warning}`),
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
     ...(usedFallback ? [] : [`📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`]),
-    ...(elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${styledNumbers(elapsedSeconds.toFixed(2))} 秒`]),
+    ...(elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
     line,
     '确认以上信息后入账？',
     '',
-    `𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓬𝓸𝓼𝓽𝓫𝓻𝓲𝓭𝓰𝓮 · 𝓿${styledNumbers(version)}`
-  ].join('\n');
+    `𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓬𝓸𝓼𝓽𝓫𝓻𝓲𝓭𝓰𝓮 · 𝓿${version}`
+  ].join('\n').replace(/[A-Za-z0-9]/g, char => styled[plain.indexOf(char)]);
 }
