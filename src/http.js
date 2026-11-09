@@ -38,11 +38,14 @@ export async function handle(req, res, logCall = () => {}) {
     record.model = 'qwen/qwen3.8-27b';
     record.stage = 'model';
     const modelStarted = stageStarted = performance.now();
-    const {transaction, usage, rateLimits} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:'https://api.groq.com/openai/v1',model:'qwen/qwen3.8-27b'}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
+    const fallback = process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_BASE_URL ? {apiKey:process.env.DASHSCOPE_API_KEY,baseUrl:process.env.DASHSCOPE_BASE_URL,model:'qwen3.8-flash'} : undefined;
+    const {transaction, usage, rateLimits, model, usedFallback} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:'https://api.groq.com/openai/v1',model:'qwen/qwen3.8-27b',fallback}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
+    record.resultModel = model;
+    record.usedFallback = usedFallback;
     record.modelMs = Math.round(performance.now() - modelStarted);
     record.usage = usage ? {promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens} : undefined;
     record.stage = 'complete';
-    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, rateLimits, (performance.now() - started) / 1000),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:record.rateLimitsTime});
+    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, rateLimits, (performance.now() - started) / 1000, usedFallback),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:rateLimits ? record.rateLimitsTime : undefined});
   } catch (error) {
     if (record.stage === 'auth') record.authMs = Math.round(performance.now() - stageStarted);
     if (record.stage === 'model') record.modelMs = Math.round(performance.now() - stageStarted);

@@ -76,13 +76,13 @@ export function buildIcostUrl(transaction) {
   return `iCost://${path}?${params}`;
 }
 
-export function buildPreview(tx, rateLimits, elapsedSeconds) {
+export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = false) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
     : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay') || warning.startsWith('模型已按自定义规则')) ? '（规则）' : '';
   return [
-    '🧾  记账小票（Groq · Qwen 3.8 27B）',
+    `🧾  记账小票（${usedFallback ? '百炼 · Qwen 3.8 Flash，备用模型' : 'Groq · Qwen 3.8 27B'}）`,
     line,
     '',
     `${tx.type}  ${amount}\u00a0CNY`,
@@ -94,7 +94,7 @@ export function buildPreview(tx, rateLimits, elapsedSeconds) {
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
-    `📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`,
+    ...(usedFallback ? [] : [`📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`]),
     ...(elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
     line,
     '确认以上信息后入账？',

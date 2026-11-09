@@ -46,6 +46,37 @@ test('upstream failures do not become success', async () => {
  await assert.rejects(analyze(input,config,async()=>({ok:true,json:async()=>({})})), /无法识别/);
 });
 
+test('switches to Flash for transient Groq failures and sends the image', async () => {
+ const fallback = {baseUrl:'https://fallback.test/v1',apiKey:'fallback-key',model:'qwen3.8-flash'};
+ for (const failure of [429, 503, 'network']) {
+  const calls = [];
+  const result = await analyze({...input,text:undefined,image:'YWJj'}, {...config,fallback}, async (url, options) => {
+   calls.push({url,options});
+   if (calls.length === 1) { if (failure === 'network') throw new Error('network'); return {ok:false,status:failure}; }
+   return fake(transaction)();
+  });
+  assert.equal(calls.length,2);
+  assert.equal(calls[1].url,'https://fallback.test/v1/chat/completions');
+  assert.equal(calls[1].options.headers.authorization,'Bearer fallback-key');
+  const sent = JSON.parse(calls[1].options.body);
+  assert.equal(sent.model,'qwen3.8-flash');
+  assert.equal(sent.enable_thinking,false);
+  assert.equal(sent.messages[0].content[1].image_url.url,'data:image/jpeg;base64,YWJj');
+  assert.equal(result.model,'qwen3.8-flash');
+  assert.equal(result.rateLimits,null);
+  assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票（百炼 · Qwen 3\.8 Flash，备用模型）/);
+  assert.doesNotMatch(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/今日请求剩余/);
+ }
+});
+
+test('does not switch for invalid credentials and reports fallback failure', async () => {
+ const fallback = {baseUrl:'https://fallback.test',apiKey:'fallback-key',model:'qwen3.8-flash'};
+ let calls = 0;
+ await assert.rejects(analyze(input,{...config,fallback},async()=>{ calls++; return {ok:false,status:401}; }),/HTTP 401/);
+ assert.equal(calls,1);
+ await assert.rejects(analyze(input,{...config,fallback},async()=>({ok:false,status:503})),/备用模型服务请求失败（HTTP 503）/);
+});
+
 test('iCost links encode fields and use documented income and expense paths', () => {
  const tx = normalize({...transaction,remark:'午餐 & 茶'},input);
  const url = new URL(buildIcostUrl(tx));
