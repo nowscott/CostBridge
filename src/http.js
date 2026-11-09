@@ -23,7 +23,8 @@ export async function handle(req, res, logCall = () => {}) {
     if (!process.env.UNKEY_ROOT_KEY) throw new AppError('configuration_error','服务尚未配置授权验证。',500);
     record.stage = 'auth';
     const authStarted = stageStarted = performance.now();
-    await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
+    const verifiedKey = await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
+    record.keyId = verifiedKey.keyId;
     record.authMs = Math.round(performance.now() - authStarted);
     record.stage = 'input';
     let body = req.body;
