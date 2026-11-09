@@ -82,7 +82,7 @@ export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = fals
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
     : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay') || warning.startsWith('模型已按自定义规则')) ? '（规则）' : '';
   return [
-    `🧾  记账小票（${usedFallback ? '百炼 · Qwen 3.8 Flash，备用模型' : 'Groq · Qwen 3.8 27B'}）`,
+    `🧾  记账小票（${usedFallback ? '千问 · Qwen 3.8 Flash，备用模型' : 'Groq · Qwen 3.8 27B'}）`,
     line,
     '',
     `${tx.type}  ${amount}\u00a0CNY`,

@@ -39,7 +39,7 @@ export async function handle(req, res, logCall = () => {}) {
     record.model = 'qwen/qwen3.8-27b';
     record.stage = 'model';
     const modelStarted = stageStarted = performance.now();
-    const fallback = process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_BASE_URL ? {apiKey:process.env.DASHSCOPE_API_KEY,baseUrl:process.env.DASHSCOPE_BASE_URL,model:'qwen3.8-flash'} : undefined;
+    const fallback = process.env.QWEN_API_KEY ? {apiKey:process.env.QWEN_API_KEY,baseUrl:'https://maas.qianwenaiapi.com/compatible-mode/v1',model:'qwen3.8-flash'} : undefined;
     const {transaction, usage, rateLimits, model, usedFallback} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:'https://api.groq.com/openai/v1',model:'qwen/qwen3.8-27b',fallback}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
     record.resultModel = model;
     record.usedFallback = usedFallback;
