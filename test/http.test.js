@@ -94,14 +94,16 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
  process.env.UNKEY_ROOT_KEY = 'test-root-key';
  process.env.GROQ_API_KEY = 'test-model-key';
  globalThis.fetch = async (url) => String(url).includes('unkey')
-  ? {ok:true,status:200,json:async()=>({data:{valid:true}})}
+  ? {ok:true,status:200,json:async()=>({data:{valid:true,keyId:'key_example_123'}})}
   : {ok:true,status:200,headers:new Headers({'x-ratelimit-remaining-requests':'987','x-ratelimit-limit-requests':'1000'}),json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡'})}}],usage:{total_tokens:123}})};
  try {
-  let payload;
+  let payload, record;
   const response = {setHeader() {}, end(data) { payload = JSON.parse(data); }};
-  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{text:'午餐 12.50 元',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'}},response);
+  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{text:'午餐 12.50 元',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'}},response, value => { record = value; });
   assert.equal(response.statusCode,200);
   assert.equal(payload.ok,true);
+  assert.equal(record.keyId,'key_example_123');
+  assert.doesNotMatch(JSON.stringify(record),/test-root-key|test-model-key|午餐/);
   assert.equal(payload.transaction.amount,-12.5);
   assert.match(payload.preview,/12\.50/);
   assert.match(payload.preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时/);
@@ -130,6 +132,7 @@ test('records diagnostic metadata without request content or credentials after r
     });
     assert.equal(record.status,401);
     assert.equal(record.stage,'auth');
+    assert.equal(record.keyId,undefined);
     assert.equal(typeof record.authMs,'number');
     assert.doesNotMatch(JSON.stringify(record),/root-secret|user-secret|private-bill/);
   } finally {
@@ -137,4 +140,22 @@ test('records diagnostic metadata without request content or credentials after r
     if (previousRoot === undefined) delete process.env.UNKEY_ROOT_KEY;
     else process.env.UNKEY_ROOT_KEY = previousRoot;
   }
+});
+
+test('records the verified key ID when a later step fails', async () => {
+ const previous = process.env.UNKEY_ROOT_KEY, originalFetch = globalThis.fetch;
+ process.env.UNKEY_ROOT_KEY = 'root-secret';
+ globalThis.fetch = async () => ({ok:true,status:200,json:async()=>({data:{valid:true,keyId:'key_example_123'}})});
+ try {
+  let record;
+  const res = {setHeader() {}, end() {}};
+  await handle({method:'POST',headers:{authorization:'Bearer access-secret'},body:{}}, res, value => { record = value; });
+  assert.equal(record.status,400);
+  assert.equal(record.keyId,'key_example_123');
+  assert.doesNotMatch(JSON.stringify(record),/access-secret|root-secret/);
+ } finally {
+  globalThis.fetch = originalFetch;
+  if (previous === undefined) delete process.env.UNKEY_ROOT_KEY;
+  else process.env.UNKEY_ROOT_KEY = previous;
+ }
 });
