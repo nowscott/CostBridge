@@ -10,7 +10,7 @@
 
 ## 账单会去哪里？
 
-快捷指令把截图、iCost 分类和账户以及当前时间，通过 HTTPS 交给 CostBridge；服务再把截图、名单和提示词发送给配置的 Groq 接口。如启用了备用模型，Groq 暂时不可用时会将相同内容发送给阿里云百炼。识别结果仅用于本次响应。
+快捷指令把截图、iCost 分类和账户以及当前时间，通过 HTTPS 交给 CostBridge；服务再把截图、名单和提示词发送给配置的 Groq 接口。如启用了备用模型，Groq 暂时不可用时会将相同内容发送给千问 AI 平台。识别结果仅用于本次响应。
 
 本项目不主动保存原始账单，但部署商和模型服务商如何处理或保留数据，以各自条款为准；他们的平台日志不由本项目控制。截图可能带着不少个人信息，发送前请看一眼。真实截图、账单、密钥和账户配置也别提交到公共仓库——Git 的记性比我们好。
 
@@ -24,7 +24,7 @@
 
 需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`UNKEY_ROOT_KEY` 是仅有目标授权空间验证权限的 Unkey 管理密钥，`GROQ_API_KEY` 是配置在服务端的 Groq API 密钥；当前使用 `qwen/qwen3.8-27b` 模型。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
 
-可选配置 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_BASE_URL`，启用百炼 `qwen3.8-flash` 作为备用。地址填写 API Key 对应业务空间和地域的 OpenAI 兼容接口根地址，参见[百炼接口文档](https://help.aliyun.com/zh/model-studio/qwen-vl-compatible-with-openai)。Groq 连接失败、限流或返回 5xx 时切换一次；其他错误不切换。两项均配置后才启用，备用调用可能产生费用。小票显示实际使用的模型，百炼小票不显示 Groq 额度。
+可选配置千问 AI 平台按量付费的 `QWEN_API_KEY`，启用 `qwen3.8-flash` 作为备用，接口地址采用[千问 AI 平台官方地址](https://platform.qianwenai.com/docs/developer-guides/getting-started/introduction)。Groq 连接失败、限流或返回 5xx 时切换一次；其他错误不切换。备用调用可能产生费用。小票显示实际使用的模型，备用模型小票不显示 Groq 额度。
 
 ## 给喜欢直接对话的程序：接口
 

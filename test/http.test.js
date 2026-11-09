@@ -159,3 +159,29 @@ test('records the verified key ID when a later step fails', async () => {
   else process.env.UNKEY_ROOT_KEY = previous;
  }
 });
+
+test('uses the configured Qianwen platform key when Groq is unavailable', async () => {
+ const oldRoot = process.env.UNKEY_ROOT_KEY, oldGroq = process.env.GROQ_API_KEY, oldQwen = process.env.QWEN_API_KEY, originalFetch = globalThis.fetch;
+ process.env.UNKEY_ROOT_KEY = 'root-test'; process.env.GROQ_API_KEY = 'groq-test'; process.env.QWEN_API_KEY = 'qwen-test';
+ let fallbackRequest, record, payload;
+ globalThis.fetch = async (url, options) => {
+  if (String(url).includes('unkey')) return {ok:true,status:200,json:async()=>({data:{valid:true,keyId:'key_test'}})};
+  if (String(url).includes('groq.com')) return {ok:false,status:503};
+  fallbackRequest = {url, options};
+  return {ok:true,status:200,json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡'})}}]})};
+ };
+ try {
+  const res = {setHeader() {}, end(data) { payload = JSON.parse(data); }};
+  await handle({method:'POST',headers:{authorization:'Bearer access-test'},body:{text:'午餐 12.50 元',expenseCategories:['餐饮'],incomeCategories:['工资'],accounts:['储蓄卡'],defaultAccount:'储蓄卡',now:'2026/11/07 16:06'}}, res, value => {record=value;});
+  assert.equal(res.statusCode,200);
+  assert.equal(fallbackRequest.url,'https://maas.qianwenaiapi.com/compatible-mode/v1/chat/completions');
+  assert.equal(fallbackRequest.options.headers.authorization,'Bearer qwen-test');
+  assert.equal(record.usedFallback,true);
+  assert.match(payload.preview,/千问 · Qwen 3\.8 Flash，备用模型/);
+ } finally {
+  globalThis.fetch = originalFetch;
+  for (const [name,value] of [['UNKEY_ROOT_KEY',oldRoot],['GROQ_API_KEY',oldGroq],['QWEN_API_KEY',oldQwen]]) {
+   if (value === undefined) delete process.env[name]; else process.env[name] = value;
+  }
+ }
+});

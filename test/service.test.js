@@ -64,7 +64,7 @@ test('switches to Flash for transient Groq failures and sends the image', async 
   assert.equal(sent.messages[0].content[1].image_url.url,'data:image/jpeg;base64,YWJj');
   assert.equal(result.model,'qwen3.8-flash');
   assert.equal(result.rateLimits,null);
-  assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票（百炼 · Qwen 3\.8 Flash，备用模型）/);
+  assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票（千问 · Qwen 3\.8 Flash，备用模型）/);
   assert.doesNotMatch(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/今日请求剩余/);
  }
 });
