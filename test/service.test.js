@@ -64,7 +64,7 @@ test('switches to Flash for transient Groq failures and sends the image', async 
   assert.equal(sent.messages[0].content[1].image_url.url,'data:image/jpeg;base64,YWJj');
   assert.equal(result.model,'qwen3.8-flash');
   assert.equal(result.rateLimits,null);
-  assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票（千问 · Qwen 3\.8 Flash，备用模型）/);
+  assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票〔千问 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝓕𝓵𝓪𝓼𝓱〕/);
   assert.doesNotMatch(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/今日请求剩余/);
  }
 });
@@ -93,7 +93,8 @@ test('accepts the iCost shortcut text lists and supplies Shanghai current time',
 
 test('receipt shows the transaction and identifies a default account', () => {
  const preview = buildPreview(normalize({...transaction,account:'未知'},input));
- assert.match(preview,/记账小票（Groq · Qwen 3\.8 27B）/);
+ assert.match(preview,/记账小票〔𝓖𝓻𝓸𝓺 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝟐𝟕𝓑〕/);
+ assert.match(preview,/⏰ 时间  𝟐𝟎𝟐𝟔\/𝟏𝟏\/𝟎𝟕 𝟏𝟓:𝟑𝟎/);
  assert.match(preview,/12\.50/); assert.match(preview,/餐饮/); assert.match(preview,/信用卡（默认）/);
  assert.match(preview, /支出  −12\.50\u00a0CNY/);
  assert.doesNotMatch(preview,/⚠️|注意事项/);
@@ -102,7 +103,7 @@ test('receipt shows the transaction and identifies a default account', () => {
 test('receipt displays the daily request snapshot followed by request time', () => {
  const tx = normalize(transaction,input);
  const preview = buildPreview(tx,{dailyRequestsRemaining:'987',dailyRequestsLimit:'1000'},1.234);
- assert.match(preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时  1\.23 秒/);
+ assert.match(preview,/今日请求剩余  987 \/ 1000 次\n⏱️ 请求耗时  𝟏\.𝟐𝟑 秒/);
  assert.doesNotMatch(preview,/tokens|消耗/);
  assert.match(buildPreview(tx,null),/今日请求剩余  未提供/);
  assert.match(buildPreview(tx,{dailyRequestsRemaining:'0',dailyRequestsLimit:'1000'}),/今日请求剩余  0 \/ 1000 次/);

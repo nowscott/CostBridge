@@ -177,7 +177,7 @@ test('uses the configured Qianwen platform key when Groq is unavailable', async 
   assert.equal(fallbackRequest.url,'https://maas.qianwenaiapi.com/compatible-mode/v1/chat/completions');
   assert.equal(fallbackRequest.options.headers.authorization,'Bearer qwen-test');
   assert.equal(record.usedFallback,true);
-  assert.match(payload.preview,/千问 · Qwen 3\.8 Flash，备用模型/);
+  assert.match(payload.preview,/千问 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝓕𝓵𝓪𝓼𝓱/);
  } finally {
   globalThis.fetch = originalFetch;
   for (const [name,value] of [['UNKEY_ROOT_KEY',oldRoot],['GROQ_API_KEY',oldGroq],['QWEN_API_KEY',oldQwen]]) {
