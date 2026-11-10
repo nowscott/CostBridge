@@ -16,12 +16,12 @@ function defaultProviders() {
   ];
 }
 
-function selectedProvider(req, body) {
+function providerParam(req, body) {
   const url = new URL(req.url || '/', 'http://localhost');
   const fromQuery = url.searchParams.get('provider');
   const raw = fromQuery && fromQuery.trim() ? fromQuery : body?.provider;
   const name = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  return isProvider(name) ? name : DEFAULT_PROVIDER;
+  return isProvider(name) ? name : null;
 }
 
 export async function handle(req, res, logCall = () => {}, options = {}) {
@@ -55,9 +55,10 @@ export async function handle(req, res, logCall = () => {}, options = {}) {
       body = raw;
     }
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
-    const requestedProvider = options.selectProvider ? selectedProvider(req, body) : DEFAULT_PROVIDER;
-    const providers = options.selectProvider ? [providerConfig(requestedProvider)] : defaultProviders();
-    record.provider = requestedProvider;
+    const requestedProvider = providerParam(req, body);
+    const providerKey = requestedProvider ?? DEFAULT_PROVIDER;
+    const providers = (requestedProvider || options.selectProvider) ? [providerConfig(providerKey)] : defaultProviders();
+    record.provider = providerKey;
     record.inputType = body?.image ? 'image' : body?.text ? 'text' : 'unknown';
     record.inputLength = body?.image?.length ?? body?.text?.length;
     record.model = providers[0].model;

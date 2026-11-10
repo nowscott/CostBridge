@@ -186,7 +186,7 @@ test('uses the configured Qianwen platform key when Groq is unavailable', async 
  }
 });
 
-test('selects an explicit provider and defaults to Groq for unknown values', async () => {
+test('selects an explicit provider from query or body and keeps the default chain when omitted', async () => {
  const saved = {root: process.env.UNKEY_ROOT_KEY, groq: process.env.GROQ_API_KEY, qwen: process.env.QWEN_API_KEY, sf: process.env.SF_API_KEY, fetch: globalThis.fetch};
  process.env.UNKEY_ROOT_KEY = 'root-test';
  process.env.GROQ_API_KEY = 'groq-test';
@@ -222,10 +222,17 @@ test('selects an explicit provider and defaults to Groq for unknown values', asy
   assert.equal(query.payload.provider,'sf');
 
   calls.length = 0;
-  const ignored = res();
-  await handle({method:'POST',headers:{authorization:'Bearer access'},body:{...body,provider:'sf'}}, ignored);
+  const viaBody = res();
+  await handle({method:'POST',headers:{authorization:'Bearer access'},body:{...body,provider:'sf'}}, viaBody);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].url,'https://api.siliconflow.cn/v1/chat/completions');
+  assert.equal(viaBody.payload.provider,'sf');
+
+  calls.length = 0;
+  const viaDefaultChain = res();
+  await handle({method:'POST',headers:{authorization:'Bearer access'},body}, viaDefaultChain);
   assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
-  assert.equal(ignored.payload.provider,'groq');
+  assert.equal(viaDefaultChain.payload.provider,'groq');
  } finally {
   globalThis.fetch = saved.fetch;
   for (const [name, value] of [['UNKEY_ROOT_KEY',saved.root],['GROQ_API_KEY',saved.groq],['QWEN_API_KEY',saved.qwen],['SF_API_KEY',saved.sf]]) {
