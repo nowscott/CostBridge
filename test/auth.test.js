@@ -19,6 +19,7 @@ test('accepts a valid key and sends the access key to Unkey', async () => {
   assert.equal(request.url, 'https://api.unkey.com/v2/keys.verifyKey');
   assert.equal(request.options.headers.authorization, `Bearer ${rootKey}`);
   assert.deepEqual(JSON.parse(request.options.body), { key: accessKey });
+  assert.ok(request.options.signal instanceof AbortSignal);
 });
 
 test('explains why a key was rejected without echoing the key', async () => {
@@ -52,6 +53,22 @@ test('reports a rate-limited key with 429 instead of 401', async () => {
     assert.match(error.message, /受限/);
     return true;
   });
+});
+
+test('times out a hanging verification request', async () => {
+  const started = Date.now();
+  await assert.rejects(verifyAccessKey(accessKey, {
+    rootKey,
+    timeoutMs: 10,
+    fetcher: (url, options) => new Promise((resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(options.signal.reason));
+    })
+  }), error => {
+    assert.equal(error.status, 503);
+    assert.equal(error.code, 'auth_unavailable');
+    return true;
+  });
+  assert.ok(Date.now() - started < 1000);
 });
 
 test('treats unexpected Unkey responses as an unavailable service', async () => {

@@ -1,4 +1,5 @@
 import { AppError } from './core.js';
+import { AUTH_TIMEOUT_MS, fetchWithTimeout } from './timeouts.js';
 
 const INVALID_KEY_MESSAGES = new Map([
   ['NOT_FOUND', '访问凭据无效。'],
@@ -10,15 +11,15 @@ const INVALID_KEY_MESSAGES = new Map([
   ['INSUFFICIENT_PERMISSIONS', '访问凭据无权访问本服务。']
 ]);
 
-export async function verifyAccessKey(accessKey, { rootKey, fetcher = fetch } = {}) {
+export async function verifyAccessKey(accessKey, { rootKey, fetcher = fetch, timeoutMs = AUTH_TIMEOUT_MS } = {}) {
   if (!rootKey) throw new AppError('configuration_error', '服务尚未配置授权验证。', 500);
   let response;
   try {
-    response = await fetcher('https://api.unkey.com/v2/keys.verifyKey', {
+    response = await fetchWithTimeout(fetcher, 'https://api.unkey.com/v2/keys.verifyKey', {
       method: 'POST',
       headers: { authorization: `Bearer ${rootKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({ key: accessKey })
-    });
+    }, timeoutMs);
   } catch {
     throw new AppError('auth_unavailable', '授权验证服务连接失败，请稍后再试。', 503);
   }

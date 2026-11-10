@@ -2,6 +2,11 @@
   "regions": [
     "sin1"
   ],
+  "functions": {
+    "api/analyze.js": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/cleanup-call-logs",

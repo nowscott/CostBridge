@@ -1,3 +1,5 @@
+import { CREATE_KEY_TIMEOUT_MS, fetchWithTimeout } from './timeouts.js';
+
 export async function handleCreateKey(req, res, fetcher = fetch) {
   res.setHeader('content-type', 'application/json; charset=utf-8');
   res.setHeader('cache-control', 'no-store');
@@ -24,11 +26,11 @@ export async function handleCreateKey(req, res, fetcher = fetch) {
   if (typeof body?.name !== 'string' || !body.name.trim() || body.name.length > 255) return send(false, '请输入有效的 Key 名称。');
   let response;
   try {
-    response = await fetcher('https://api.unkey.com/v2/keys.createKey', {
+    response = await fetchWithTimeout(fetcher, 'https://api.unkey.com/v2/keys.createKey', {
       method: 'POST',
       headers: {authorization: auth, 'content-type': 'application/json'},
       body: JSON.stringify({apiId: process.env.UNKEY_CREATE_API_ID, name: body.name.trim(), prefix: 'cb', byteLength: 32})
-    });
+    }, CREATE_KEY_TIMEOUT_MS);
   } catch {
     return send(false, '连接 Unkey 失败，Key 可能已经创建，请先检查 Unkey 后台。');
   }

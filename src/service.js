@@ -1,15 +1,17 @@
 import { AppError, validateInput, normalize, prompt } from './core.js';
+import { MODEL_TIMEOUT_MS, fetchWithTimeout } from './timeouts.js';
 
 export async function analyze(body, config, fetcher = fetch, onRateLimits = () => {}) {
   const input = validateInput(body);
   if (!config.apiKey) throw new AppError('configuration_error', '服务尚未配置 Groq API 密钥。', 500);
+  const timeoutMs = config.timeoutMs ?? MODEL_TIMEOUT_MS;
   const content = [{type:'text', text: prompt(input)}];
   if (input.image) content.push({type:'image_url', image_url:{url:`data:image/jpeg;base64,${input.image}`}});
   else content.push({type:'text', text:input.text});
   let response;
   let usedFallback = false;
   try {
-    response = await fetcher(`${config.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.apiKey}`}, body:JSON.stringify({model:config.model, reasoning_effort:'none', temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})});
+    response = await fetchWithTimeout(fetcher, `${config.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.apiKey}`}, body:JSON.stringify({model:config.model, reasoning_effort:'none', temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})}, timeoutMs);
   } catch {
     if (!config.fallback) throw new AppError('model_unavailable', '模型服务连接失败，请稍后再试。', 502);
   }
@@ -25,7 +27,7 @@ export async function analyze(body, config, fetcher = fetch, onRateLimits = () =
   if ((!response || response.status === 429 || response.status >= 500) && config.fallback) {
     usedFallback = true;
     try {
-      response = await fetcher(`${config.fallback.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.fallback.apiKey}`}, body:JSON.stringify({model:config.fallback.model, enable_thinking:false, temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})});
+      response = await fetchWithTimeout(fetcher, `${config.fallback.baseUrl}/chat/completions`, {method:'POST', headers:{'content-type':'application/json', authorization:`Bearer ${config.fallback.apiKey}`}, body:JSON.stringify({model:config.fallback.model, enable_thinking:false, temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})}, timeoutMs);
     } catch { throw new AppError('model_unavailable', '主模型和备用模型均无法连接，请稍后再试。', 502); }
   }
   if (!response.ok) {
