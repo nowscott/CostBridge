@@ -22,9 +22,9 @@
 
 ## 自己搭一座桥
 
-需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`UNKEY_ROOT_KEY` 是仅有目标授权空间验证权限的 Unkey 管理密钥，`GROQ_API_KEY` 是配置在服务端的 Groq API 密钥；当前使用 `qwen/qwen3.8-27b` 模型。可选变量 `QWEN_API_KEY`、`CALLLOG_DATABASE_URL`、`CRON_SECRET` 的用途见 `.env.example`。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
+需要 Node.js 20 或更高版本。参考 `.env.example` 设置环境变量：`UNKEY_ROOT_KEY` 是仅有目标授权空间验证权限的 Unkey 管理密钥，`GROQ_API_KEY` 是配置在服务端的 Groq API 密钥；当前使用 `qwen/qwen3.8-27b` 模型。可选变量 `QWEN_API_KEY`、`SF_API_KEY`、`CALLLOG_DATABASE_URL`、`CRON_SECRET` 的用途见 `.env.example`。设置后运行 `npm start`，服务监听 3000 端口。不要将密钥放入命令历史或公开文件；使用本机安全的环境变量管理方式。执行 `npm test` 运行离线测试。`.env.example` 只是变量说明，Node 不会自动读取 `.env`。
 
-可选配置千问 AI 平台按量付费的 `QWEN_API_KEY`，启用 `qwen3.8-flash` 作为备用，接口地址采用[千问 AI 平台官方地址](https://platform.qianwenai.com/docs/developer-guides/getting-started/introduction)。Groq 连接失败、限流或返回 5xx 时切换一次；其他错误不切换。备用调用可能产生费用。小票显示实际使用的模型，备用模型小票不显示 Groq 额度。
+可选配置千问 AI 平台按量付费的 `QWEN_API_KEY`（`qwen3.8-flash`）和硅基流动的 `SF_API_KEY`（免费的 `Qwen/Qwen3.5-4B`）。默认链路按 Groq → 千问 → 硅基流动依次尝试，未配置 Key 的备用供应商会被跳过；Groq 连接失败、限流或返回 5xx 时切换，其他错误不切换。备用调用可能产生费用。小票显示实际使用的模型，非 Groq 模型的小票不显示 Groq 额度。
 
 ## 给喜欢直接对话的程序：接口
 
@@ -37,18 +37,20 @@
 成功示例：
 
 ```json
-{"ok":true,"transaction":{"type":"支出","amount":-12.5,"currency":"CNY","date":"2026/11/07 16:06","category":"餐饮","account":"信用卡","remark":"午餐","warnings":["账户未识别，使用默认账户，请核对。","分类由模型判断，请核对后再入账。"]},"icostUrl":"iCost://expense?amount=12.5&currency=CNY&..."}
+{"ok":true,"provider":"groq","transaction":{"type":"支出","amount":-12.5,"currency":"CNY","date":"2026/11/07 16:06","category":"餐饮","account":"信用卡","remark":"午餐","warnings":["账户未识别，使用默认账户，请核对。","分类由模型判断，请核对后再入账。"]},"icostUrl":"iCost://expense?amount=12.5&currency=CNY&..."}
 ```
 
 请求可选设置 `customPrompt` 为自定义规则文本（最多 2000 字，留空表示不使用额外规则），例如“Apple Pay 使用信用卡”。规则由模型判断，账户仍须来自账户列表。旧版 `ruleAccount` 在未提供 `customPrompt` 时继续启用原 Apple Pay/0822 规则。
 
+另提供 `POST /api/analyze-provider`，请求体与 `/api/analyze` 相同，可用请求体里的 `provider` 字段或查询参数 `?provider=` 选择供应商：`groq`、`qwen`、`sf`。不传或传其他值一律使用 `groq`；该接口只调用所选供应商，不自动切换。示例：`POST /api/analyze-provider?provider=sf`。响应中的 `provider` 始终表示实际使用的供应商。
+
 小票显示 Groq 本次响应返回的今日剩余请求次数及请求耗时；若 Groq 未提供限额，小票显示“未提供”。旧请求中的 `showTokens` 不再影响小票，token 用量仍记录在后台诊断日志中。
 
-失败返回非 2xx 状态和 `{"ok":false,"error":{"code":"...","message":"..."}}`；凭据无效返回 401，凭据被限流返回 429，授权服务不可用返回 503。授权验证和模型请求分别有 5 秒、20 秒超时，超时按连接失败返回 503 或 502；启用备用模型时最坏等待约 45 秒。无论请求或模型失败，都不代表已入账。Vercel 请求体上限 4.5 MB；Base64 会增加约三分之一体积，建议截图转 JPEG 并缩小后控制在约 3 MB 以下。服务端另有约 4.2 MB 的本地请求体读取保护（Vercel 预解析请求体时不经过该分支），图片本身始终受 4,000,000 个 Base64 字符上限约束，3 MB JPEG 已接近该值。如平台在到达函数前拒绝超大请求，可能返回平台自己的错误而不是上述 JSON。
+失败返回非 2xx 状态和 `{"ok":false,"error":{"code":"...","message":"..."}}`；凭据无效返回 401，凭据被限流返回 429，授权服务不可用返回 503。授权验证和每次模型请求分别有 5 秒、15 秒超时，超时按连接失败返回 503 或 502；默认链路最坏等待约 50 秒。无论请求或模型失败，都不代表已入账。Vercel 请求体上限 4.5 MB；Base64 会增加约三分之一体积，建议截图转 JPEG 并缩小后控制在约 3 MB 以下。服务端另有约 4.2 MB 的本地请求体读取保护（Vercel 预解析请求体时不经过该分支），图片本身始终受 4,000,000 个 Base64 字符上限约束，3 MB JPEG 已接近该值。如平台在到达函数前拒绝超大请求，可能返回平台自己的错误而不是上述 JSON。
 
 ## 部署到 Vercel
 
-导入本仓库创建独立项目，Framework 选择 Other，Node 运行时使用项目声明的版本。在项目环境变量中设置 `UNKEY_ROOT_KEY` 和 `GROQ_API_KEY`；需要额度页面或调用日志时，再设置 `CALLLOG_DATABASE_URL` 并按 [`sql/call-logs.sql`](sql/call-logs.sql) 建表，`CRON_SECRET` 用于保护每日清理。部署后以 HTTPS 调用 `/api/analyze`。测试和生产环境分别使用独立授权空间和凭据；不要分享包含服务访问凭据的快捷指令。Vercel 和 Groq 平台可能产生费用，以各自当前套餐为准。
+导入本仓库创建独立项目，Framework 选择 Other，Node 运行时使用项目声明的版本。在项目环境变量中设置 `UNKEY_ROOT_KEY` 和 `GROQ_API_KEY`，需要备用模型时再加 `QWEN_API_KEY`、`SF_API_KEY`；需要额度页面或调用日志时，再设置 `CALLLOG_DATABASE_URL` 并按 [`sql/call-logs.sql`](sql/call-logs.sql) 建表，`CRON_SECRET` 用于保护每日清理。部署后以 HTTPS 调用 `/api/analyze`。测试和生产环境分别使用独立授权空间和凭据；不要分享包含服务访问凭据的快捷指令。Vercel 和 Groq 平台可能产生费用，以各自当前套餐为准。
 
 ## 想自己动手做快捷指令？
 
@@ -64,7 +66,7 @@
 
 ## 关于日志和额度
 
-出问题时总得留点线索，但不必把账单也留下。调用诊断日志在 Vercel 响应后写入数据库：记录请求时间、请求编号、授权成功后 Unkey 返回的 Key ID、状态与错误代码、阶段耗时、输入类型与长度、模型和 token 用量；不保存凭据、账单正文、截图或识别结果。Key ID 可在 Unkey 后台对应到 Key；多人共用同一 Key 时无法区分个人，授权未通过或旧日志也可能没有 Key ID。每天清理超过 7 天的记录；首次启用前先执行 [`sql/call-logs.sql`](sql/call-logs.sql) 建表，未配置 `CRON_SECRET` 时清理接口会返回 401，记录不会自动删除。数据库故障或函数超时时记录可能缺失；Vercel 在函数启动前拒绝的请求也不会写入此表。`CALLLOG_DATABASE_URL` 用于连接日志数据库，`CRON_SECRET` 用于保护清理接口。
+出问题时总得留点线索，但不必把账单也留下。调用诊断日志在 Vercel 响应后写入数据库：记录请求时间、请求编号、授权成功后 Unkey 返回的 Key ID、状态与错误代码、阶段耗时、输入类型与长度、请求与实际使用的供应商、模型和 token 用量；不保存凭据、账单正文、截图或识别结果。Key ID 可在 Unkey 后台对应到 Key；多人共用同一 Key 时无法区分个人，授权未通过或旧日志也可能没有 Key ID。每天清理超过 7 天的记录；首次启用前先执行 [`sql/call-logs.sql`](sql/call-logs.sql) 建表，未配置 `CRON_SECRET` 时清理接口会返回 401，记录不会自动删除。数据库故障或函数超时时记录可能缺失；Vercel 在函数启动前拒绝的请求也不会写入此表。`CALLLOG_DATABASE_URL` 用于连接日志数据库，`CRON_SECRET` 用于保护清理接口。
 
 Groq 响应包含限额信息时，调用诊断日志同时保存限额、恢复时间和采集时间。网页自动读取最近一次快照，无需访问凭据，也不调用模型。额度快照可公开查看。快照并非实时额度，恢复时间从采集时刻起算；到达恢复时间后网页按满额估算并标记，实际额度可能因其他调用不同；日志写入失败或超过保留期时可能没有记录。本地服务不写入调用日志。`GET /api/quota` 公开返回最新限额快照。
 

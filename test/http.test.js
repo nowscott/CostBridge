@@ -185,3 +185,51 @@ test('uses the configured Qianwen platform key when Groq is unavailable', async 
   }
  }
 });
+
+test('selects an explicit provider and defaults to Groq for unknown values', async () => {
+ const saved = {root: process.env.UNKEY_ROOT_KEY, groq: process.env.GROQ_API_KEY, qwen: process.env.QWEN_API_KEY, sf: process.env.SF_API_KEY, fetch: globalThis.fetch};
+ process.env.UNKEY_ROOT_KEY = 'root-test';
+ process.env.GROQ_API_KEY = 'groq-test';
+ process.env.SF_API_KEY = 'sf-test';
+ delete process.env.QWEN_API_KEY;
+ const calls = [];
+ globalThis.fetch = async (url, options) => {
+  if (String(url).includes('unkey')) return {ok:true,status:200,json:async()=>({data:{valid:true,keyId:'key_provider'}})};
+  calls.push({url, options});
+  return {ok:true,status:200,json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡'})}}]})};
+ };
+ const body = {text:'午餐 12.50 元',expenseCategories:['餐饮'],incomeCategories:['工资'],accounts:['储蓄卡'],defaultAccount:'储蓄卡',now:'2026/11/07 16:06'};
+ const res = () => ({setHeader() {}, end(data) { this.payload = JSON.parse(data); }});
+ try {
+  const sf = res();
+  await handle({method:'POST',headers:{authorization:'Bearer access'},body:{...body,provider:'sf'}}, sf, ()=>{}, {selectProvider:true});
+  assert.equal(calls[0].url,'https://api.siliconflow.cn/v1/chat/completions');
+  assert.equal(JSON.parse(calls[0].options.body).model,'Qwen/Qwen3.5-4B');
+  assert.equal(JSON.parse(calls[0].options.body).enable_thinking,false);
+  assert.equal(sf.payload.provider,'sf');
+  assert.match(sf.payload.preview,/硅基流动/);
+
+  calls.length = 0;
+  const unknown = res();
+  await handle({method:'POST',headers:{authorization:'Bearer access'},body:{...body,provider:'anthropic'}}, unknown, ()=>{}, {selectProvider:true});
+  assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(unknown.payload.provider,'groq');
+
+  calls.length = 0;
+  const query = res();
+  await handle({method:'POST',headers:{authorization:'Bearer access'},url:'/api/analyze-provider?provider=SF',body}, query, ()=>{}, {selectProvider:true});
+  assert.equal(calls[0].url,'https://api.siliconflow.cn/v1/chat/completions');
+  assert.equal(query.payload.provider,'sf');
+
+  calls.length = 0;
+  const ignored = res();
+  await handle({method:'POST',headers:{authorization:'Bearer access'},body:{...body,provider:'sf'}}, ignored);
+  assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(ignored.payload.provider,'groq');
+ } finally {
+  globalThis.fetch = saved.fetch;
+  for (const [name, value] of [['UNKEY_ROOT_KEY',saved.root],['GROQ_API_KEY',saved.groq],['QWEN_API_KEY',saved.qwen],['SF_API_KEY',saved.sf]]) {
+   if (value === undefined) delete process.env[name]; else process.env[name] = value;
+  }
+ }
+});
