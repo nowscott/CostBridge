@@ -1,6 +1,6 @@
-// Outbound request budgets: 5s auth + 20s primary + 20s fallback = 45s worst case.
+// Outbound request budgets: 5s auth + 15s per model provider = 50s worst case with three providers.
 export const AUTH_TIMEOUT_MS = 5000;
-export const MODEL_TIMEOUT_MS = 20000;
+export const MODEL_TIMEOUT_MS = 15000;
 export const CREATE_KEY_TIMEOUT_MS = 10000;
 
 // Uses a ref'd timer (cleared on settle) so the timeout also holds when the

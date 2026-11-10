@@ -4,7 +4,10 @@ import { analyze } from '../src/service.js';
 import { normalize, validateInput, buildIcostUrl, buildPreview, prompt } from '../src/core.js';
 import { createRequire } from 'node:module';
 const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'};
-const config = {baseUrl:'https://example.test',model:'test',apiKey:'server-model-key'};
+const provider = (overrides = {}) => ({key:'groq',label:'Groq · Qwen 3.8 27B',baseUrl:'https://example.test',model:'test',apiKey:'server-model-key',extra:{reasoning_effort:'none'},...overrides});
+const fallbackProvider = (overrides = {}) => ({key:'qwen',label:'千问 · Qwen 3.8 Flash',baseUrl:'https://fallback.test/v1',model:'qwen3.8-flash',apiKey:'fallback-key',extra:{enable_thinking:false},...overrides});
+const sfProvider = (overrides = {}) => ({key:'sf',label:'硅基流动 · Qwen3.5 4B',baseUrl:'https://sf.test/v1',model:'Qwen/Qwen3.5-4B',apiKey:'sf-key',extra:{enable_thinking:false},...overrides});
+const config = {providers:[provider()]};
 const transaction = {date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡',accountRuleApplied:false};
 const fake = value => async () => ({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(value)}}]})});
 test('returns normalized transaction from a model response', async () => {
@@ -15,7 +18,7 @@ test('uses the server model key instead of a client-supplied key', async () => {
  let authorization;
  await analyze(input,config,async (url, options) => { authorization = options.headers.authorization; return fake(transaction)(); });
  assert.equal(authorization,'Bearer server-model-key');
- await assert.rejects(analyze(input,{...config,apiKey:''},fake(transaction)), /服务尚未配置 Groq API 密钥/);
+ await assert.rejects(analyze(input,{...config,providers:[provider({apiKey:''})]},fake(transaction)), /服务尚未配置 Groq API 密钥/);
 });
 test('returns Groq rate-limit headers alongside the result', async () => {
  const headers = new Headers({'x-ratelimit-remaining-requests':'987','x-ratelimit-limit-requests':'1000','x-ratelimit-remaining-tokens':'6500','x-ratelimit-limit-tokens':'8000'});
@@ -47,10 +50,9 @@ test('upstream failures do not become success', async () => {
 });
 
 test('switches to Flash for transient Groq failures and sends the image', async () => {
- const fallback = {baseUrl:'https://fallback.test/v1',apiKey:'fallback-key',model:'qwen3.8-flash'};
  for (const failure of [429, 503, 'network']) {
   const calls = [];
-  const result = await analyze({...input,text:undefined,image:'YWJj'}, {...config,fallback}, async (url, options) => {
+  const result = await analyze({...input,text:undefined,image:'YWJj'}, {...config,providers:[provider(),fallbackProvider()]}, async (url, options) => {
    calls.push({url,options});
    if (calls.length === 1) { if (failure === 'network') throw new Error('network'); return {ok:false,status:failure}; }
    return fake(transaction)();
@@ -65,16 +67,36 @@ test('switches to Flash for transient Groq failures and sends the image', async 
   assert.equal(sent.enable_thinking,false);
   assert.equal(sent.messages[0].content[1].image_url.url,'data:image/jpeg;base64,YWJj');
   assert.equal(result.model,'qwen3.8-flash');
+  assert.equal(result.provider,'qwen');
   assert.equal(result.rateLimits,null);
-  assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票〔千问 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝓕𝓵𝓪𝓼𝓱〕/);
-  assert.doesNotMatch(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/今日请求剩余/);
+  assert.match(buildPreview(result.transaction,result.rateLimits,1,'qwen'),/记账小票〔千问 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝓕𝓵𝓪𝓼𝓱〕/);
+  assert.doesNotMatch(buildPreview(result.transaction,result.rateLimits,1,'qwen'),/今日请求剩余/);
  }
 });
 
+test('falls through Groq and Qianwen to SiliconFlow Qwen3.5 4B', async () => {
+ const calls = [];
+ const result = await analyze(input, {...config,providers:[provider(),fallbackProvider(),sfProvider()]}, async (url, options) => {
+  calls.push({url,options});
+  if (calls.length < 3) return {ok:false,status:503};
+  return fake(transaction)();
+ });
+ assert.equal(calls.length,3);
+ assert.equal(calls[2].url,'https://sf.test/v1/chat/completions');
+ assert.equal(calls[2].options.headers.authorization,'Bearer sf-key');
+ const sent = JSON.parse(calls[2].options.body);
+ assert.equal(sent.model,'Qwen/Qwen3.5-4B');
+ assert.equal(sent.enable_thinking,false);
+ assert.equal(result.provider,'sf');
+ assert.equal(result.usedFallback,true);
+ assert.equal(result.rateLimits,null);
+ assert.match(buildPreview(result.transaction,result.rateLimits,1,'sf'),/记账小票〔硅基流动 · 𝓠𝔀𝓮𝓷𝟑\.𝟓 𝟒𝓑〕/);
+});
+
 test('times out a hanging primary model and still tries the fallback', async () => {
- const fallback = {baseUrl:'https://fallback.test/v1',apiKey:'fallback-key',model:'qwen3.8-flash'};
+ const providers = [provider(), fallbackProvider()];
  let calls = 0;
- const result = await analyze(input, {...config, fallback, timeoutMs: 10}, (url, options) => {
+ const result = await analyze(input, {...config, providers, timeoutMs: 10}, (url, options) => {
   calls++;
   if (calls === 1) return new Promise((resolve, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason)));
   return fake(transaction)();
@@ -84,18 +106,17 @@ test('times out a hanging primary model and still tries the fallback', async () 
 });
 
 test('reports when both the primary and fallback models time out', async () => {
- const fallback = {baseUrl:'https://fallback.test/v1',apiKey:'fallback-key',model:'qwen3.8-flash'};
- await assert.rejects(analyze(input, {...config, fallback, timeoutMs: 5}, (url, options) => new Promise((resolve, reject) => {
+ await assert.rejects(analyze(input, {...config, providers:[provider(), fallbackProvider()], timeoutMs: 5}, (url, options) => new Promise((resolve, reject) => {
   options.signal.addEventListener('abort', () => reject(options.signal.reason));
  })), /主模型和备用模型均无法连接/);
 });
 
 test('does not switch for invalid credentials and reports fallback failure', async () => {
- const fallback = {baseUrl:'https://fallback.test',apiKey:'fallback-key',model:'qwen3.8-flash'};
+ const providers = [provider(), fallbackProvider({baseUrl:'https://fallback.test'})];
  let calls = 0;
- await assert.rejects(analyze(input,{...config,fallback},async()=>{ calls++; return {ok:false,status:401}; }),/HTTP 401/);
+ await assert.rejects(analyze(input,{...config,providers},async()=>{ calls++; return {ok:false,status:401}; }),/HTTP 401/);
  assert.equal(calls,1);
- await assert.rejects(analyze(input,{...config,fallback},async()=>({ok:false,status:503})),/备用模型服务请求失败（HTTP 503）/);
+ await assert.rejects(analyze(input,{...config,providers},async()=>({ok:false,status:503})),/备用模型服务请求失败（HTTP 503）/);
 });
 
 test('iCost links encode fields and use documented income and expense paths', () => {

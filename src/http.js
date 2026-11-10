@@ -1,9 +1,30 @@
 import { AppError, buildIcostUrl, buildPreview } from './core.js';
 import { verifyAccessKey } from './auth.js';
 import { analyze } from './service.js';
-import { MODELS } from './models.js';
+import { PROVIDERS, DEFAULT_PROVIDER, isProvider } from './models.js';
 const LIMIT = 4200000;
-export async function handle(req, res, logCall = () => {}) {
+
+function providerConfig(key) {
+  return { key, ...PROVIDERS[key], apiKey: process.env[PROVIDERS[key].apiKeyEnv] };
+}
+
+function defaultProviders() {
+  return [
+    providerConfig('groq'),
+    ...(process.env.QWEN_API_KEY ? [providerConfig('qwen')] : []),
+    ...(process.env.SF_API_KEY ? [providerConfig('sf')] : [])
+  ];
+}
+
+function selectedProvider(req, body) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const fromQuery = url.searchParams.get('provider');
+  const raw = fromQuery && fromQuery.trim() ? fromQuery : body?.provider;
+  const name = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return isProvider(name) ? name : DEFAULT_PROVIDER;
+}
+
+export async function handle(req, res, logCall = () => {}, options = {}) {
   const started = performance.now();
   let stageStarted = started;
   const record = {time: new Date().toISOString(), requestId: req.headers['x-vercel-id'], method: req.method, region: process.env.VERCEL_REGION, deployment: process.env.VERCEL_GIT_COMMIT_SHA, contentLength: req.headers['content-length'], stage: 'request'};
@@ -34,19 +55,22 @@ export async function handle(req, res, logCall = () => {}) {
       body = raw;
     }
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
+    const requestedProvider = options.selectProvider ? selectedProvider(req, body) : DEFAULT_PROVIDER;
+    const providers = options.selectProvider ? [providerConfig(requestedProvider)] : defaultProviders();
+    record.provider = requestedProvider;
     record.inputType = body?.image ? 'image' : body?.text ? 'text' : 'unknown';
     record.inputLength = body?.image?.length ?? body?.text?.length;
-    record.model = MODELS.primary.model;
+    record.model = providers[0].model;
     record.stage = 'model';
     const modelStarted = stageStarted = performance.now();
-    const fallback = process.env.QWEN_API_KEY ? {apiKey:process.env.QWEN_API_KEY,baseUrl:MODELS.fallback.baseUrl,model:MODELS.fallback.model} : undefined;
-    const {transaction, usage, rateLimits, model, usedFallback} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:MODELS.primary.baseUrl,model:MODELS.primary.model,fallback}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
+    const {transaction, usage, rateLimits, model, provider, usedFallback} = await analyze(body,{providers}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
     record.resultModel = model;
+    record.resultProvider = provider;
     record.usedFallback = usedFallback;
     record.modelMs = Math.round(performance.now() - modelStarted);
     record.usage = usage ? {promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens} : undefined;
     record.stage = 'complete';
-    send(200,{ok:true,error:'',transaction,preview:buildPreview(transaction, rateLimits, (performance.now() - started) / 1000, usedFallback),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:rateLimits ? record.rateLimitsTime : undefined});
+    send(200,{ok:true,error:'',provider,transaction,preview:buildPreview(transaction, rateLimits, (performance.now() - started) / 1000, provider),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:rateLimits ? record.rateLimitsTime : undefined});
   } catch (error) {
     if (record.stage === 'auth') record.authMs = Math.round(performance.now() - stageStarted);
     if (record.stage === 'model') record.modelMs = Math.round(performance.now() - stageStarted);

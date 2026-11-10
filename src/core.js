@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { MODELS } from './models.js';
+import { PROVIDERS, DEFAULT_PROVIDER } from './models.js';
 
 const version = createRequire(import.meta.url)('../package.json').version;
 const PLAIN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -80,13 +80,15 @@ export function buildIcostUrl(transaction) {
   return `iCost://${path}?${params}`;
 }
 
-export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = false) {
+export function buildPreview(tx, rateLimits, elapsedSeconds, provider = DEFAULT_PROVIDER) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
+  const label = PROVIDERS[provider]?.label ?? PROVIDERS[DEFAULT_PROVIDER].label;
+  const showQuota = provider === DEFAULT_PROVIDER;
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
     : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay') || warning.startsWith('模型已按自定义规则')) ? '（规则）' : '';
   return styleReceipt([
-    `🧾  记账小票〔${usedFallback ? MODELS.fallback.label : MODELS.primary.label}〕`,
+    `🧾  记账小票〔${label}〕`,
     line,
     '',
     `${tx.type}  ${amount}\u00a0CNY`,
@@ -98,7 +100,7 @@ export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = fals
     `📂 分类  ${tx.category}`,
     `📝 备注  ${tx.remark || '无'}`,
     line,
-    ...(usedFallback ? [] : [`📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`]),
+    ...(showQuota ? [`📊 今日请求剩余  ${rateLimits?.dailyRequestsRemaining != null && rateLimits?.dailyRequestsLimit != null ? `${rateLimits.dailyRequestsRemaining} / ${rateLimits.dailyRequestsLimit} 次` : '未提供'}`] : []),
     ...(elapsedSeconds === undefined ? [] : [`⏱️ 请求耗时  ${elapsedSeconds.toFixed(2)} 秒`]),
     line,
     '确认以上信息后入账？',
