@@ -27,7 +27,6 @@ test('explains why a key was rejected without echoing the key', async () => {
     ['DISABLED', /停用/],
     ['EXPIRED', /过期/],
     ['USAGE_EXCEEDED', /额度/],
-    ['RATE_LIMITED', /受限/],
     ['FORBIDDEN', /无权/],
     ['SOMETHING_NEW', /无效或已停用/]
   ];
@@ -41,6 +40,18 @@ test('explains why a key was rejected without echoing the key', async () => {
       return true;
     });
   }
+});
+
+test('reports a rate-limited key with 429 instead of 401', async () => {
+  await assert.rejects(verifyAccessKey(accessKey, {
+    rootKey,
+    fetcher: async () => reply({ data: { valid: false, code: 'RATE_LIMITED' } })
+  }), error => {
+    assert.equal(error.status, 429);
+    assert.equal(error.code, 'unauthorized');
+    assert.match(error.message, /受限/);
+    return true;
+  });
 });
 
 test('treats unexpected Unkey responses as an unavailable service', async () => {

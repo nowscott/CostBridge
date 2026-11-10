@@ -37,7 +37,8 @@ export async function verifyAccessKey(accessKey, { rootKey, fetcher = fetch } = 
     throw new AppError('auth_unavailable', '授权验证服务返回内容无法识别，请稍后再试。', 503);
   }
   if (!data.valid) {
-    throw new AppError('unauthorized', INVALID_KEY_MESSAGES.get(data.code) || '访问凭据无效或已停用。', 401);
+    const status = data.code === 'RATE_LIMITED' ? 429 : 401;
+    throw new AppError('unauthorized', INVALID_KEY_MESSAGES.get(data.code) || '访问凭据无效或已停用。', status);
   }
   return data;
 }
