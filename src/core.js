@@ -101,6 +101,6 @@ export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = fals
     line,
     '确认以上信息后入账？',
     '',
-    `𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓬𝓸𝓼𝓽𝓫𝓻𝓲𝓭𝓰𝓮 · 𝓿${version}`
+    `𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓒𝓸𝓼𝓽𝓑𝓻𝓲𝓭𝓰𝓮 · 𝓿${version}`
   ].join('\n').replace(/[A-Za-z0-9]/g, char => styled[plain.indexOf(char)]);
 }
