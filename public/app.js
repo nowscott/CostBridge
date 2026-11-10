@@ -2,8 +2,21 @@ import { estimateQuota } from './quota-estimate.js';
 
 const quota = document.querySelector('#quota');
 let latestSnapshot = null;
+function resetQuotaValues() {
+  for (const name of ['requests', 'tokens']) {
+    document.querySelector(`#${name}-remaining`).textContent = '—';
+    document.querySelector(`#${name}-limit`).textContent = '';
+    document.querySelector(`#${name}-bar`).style.width = '0%';
+    document.querySelector(`#${name}-reset`).textContent = name === 'requests' ? '日请求恢复时间 —' : 'Token 恢复时间 —';
+  }
+}
+function showQuotaMessage(message, { reset = false } = {}) {
+  latestSnapshot = null;
+  if (reset) resetQuotaValues();
+  quota.textContent = message;
+}
 function showQuota(snapshot) {
-  if (!snapshot) { quota.textContent = '暂无限额记录。'; return; }
+  if (!snapshot) { showQuotaMessage('暂无限额记录。', { reset: true }); return; }
   latestSnapshot = snapshot;
   const limits = snapshot.limits;
   let hasEstimate = false;
@@ -26,9 +39,9 @@ async function refreshQuota() {
   try {
     const response = await fetch('/api/quota');
     const body = await response.json();
-    if (!body.ok) { quota.textContent = body.error.message; return; }
+    if (!body.ok) { showQuotaMessage(body.error.message, { reset: true }); return; }
     showQuota(body.snapshot);
-  } catch { quota.textContent = '限额记录暂时不可用，请稍后再试。'; }
+  } catch { showQuotaMessage('限额记录暂时不可用，请稍后再试。', { reset: true }); }
 }
 refreshQuota();
 setInterval(() => { if (!document.hidden && latestSnapshot) showQuota(latestSnapshot); }, 1000);
@@ -44,7 +57,8 @@ form.addEventListener('submit', async event => {
   const now = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const output = document.querySelector('#output');
   output.textContent = '正在识别，请稍候…';
-  quota.textContent = '等待本次限额信息…';
+  showQuotaMessage('等待本次限额信息…');
+
   const button = form.querySelector('button'); button.disabled = true;
   try {
     const file = document.querySelector('#image').files[0];
@@ -53,8 +67,8 @@ form.addEventListener('submit', async event => {
     const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${val('token')}`},body:JSON.stringify({...source,expenseCategories:list('expense'),incomeCategories:list('income'),accounts:list('accounts'),defaultAccount:val('default'),customPrompt:val('rule'),now})});
     const body = await response.json();
     output.textContent = JSON.stringify(body,null,2);
-    if (body.rateLimits && Object.values(body.rateLimits).some(value => value != null)) showQuota({limits:body.rateLimits, model:'qwen/qwen3.8-27b', time:body.rateLimitsTime});
-    else quota.textContent = '本次未取得限额信息，稍后将自动更新。';
-  } catch (error) { output.textContent = error.message === '请选择小于 3 MB 的 JPEG 截图。' ? error.message : '请求失败，请检查网络或服务配置。'; quota.textContent = '本次未取得 Groq 限额信息，稍后将自动更新。'; }
+    if (body.rateLimits && Object.values(body.rateLimits).some(value => value != null)) showQuota({limits:body.rateLimits, time:body.rateLimitsTime});
+    else showQuotaMessage('本次未取得限额信息，稍后将自动更新。');
+  } catch (error) { output.textContent = error.message === '请选择小于 3 MB 的 JPEG 截图。' ? error.message : '请求失败，请检查网络或服务配置。'; showQuotaMessage('本次未取得 Groq 限额信息，稍后将自动更新。'); }
   finally { button.disabled = false; }
 });

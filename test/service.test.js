@@ -56,6 +56,8 @@ test('switches to Flash for transient Groq failures and sends the image', async 
    return fake(transaction)();
   });
   assert.equal(calls.length,2);
+  assert.ok(calls[0].options.signal instanceof AbortSignal);
+  assert.ok(calls[1].options.signal instanceof AbortSignal);
   assert.equal(calls[1].url,'https://fallback.test/v1/chat/completions');
   assert.equal(calls[1].options.headers.authorization,'Bearer fallback-key');
   const sent = JSON.parse(calls[1].options.body);
@@ -67,6 +69,25 @@ test('switches to Flash for transient Groq failures and sends the image', async 
   assert.match(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/记账小票〔千问 · 𝓠𝔀𝓮𝓷 𝟑\.𝟖 𝓕𝓵𝓪𝓼𝓱〕/);
   assert.doesNotMatch(buildPreview(result.transaction,result.rateLimits,1,result.usedFallback),/今日请求剩余/);
  }
+});
+
+test('times out a hanging primary model and still tries the fallback', async () => {
+ const fallback = {baseUrl:'https://fallback.test/v1',apiKey:'fallback-key',model:'qwen3.8-flash'};
+ let calls = 0;
+ const result = await analyze(input, {...config, fallback, timeoutMs: 10}, (url, options) => {
+  calls++;
+  if (calls === 1) return new Promise((resolve, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason)));
+  return fake(transaction)();
+ });
+ assert.equal(calls, 2);
+ assert.equal(result.usedFallback, true);
+});
+
+test('reports when both the primary and fallback models time out', async () => {
+ const fallback = {baseUrl:'https://fallback.test/v1',apiKey:'fallback-key',model:'qwen3.8-flash'};
+ await assert.rejects(analyze(input, {...config, fallback, timeoutMs: 5}, (url, options) => new Promise((resolve, reject) => {
+  options.signal.addEventListener('abort', () => reject(options.signal.reason));
+ })), /主模型和备用模型均无法连接/);
 });
 
 test('does not switch for invalid credentials and reports fallback failure', async () => {

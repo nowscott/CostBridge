@@ -15,6 +15,7 @@ test('creates only for the configured API and returns the key without exposing t
     assert.equal(request.url,'https://api.unkey.com/v2/keys.createKey');
     assert.deepEqual(JSON.parse(request.body),{apiId:'api_test',name:'测试',prefix:'cb',byteLength:32});
     assert.equal(request.headers.authorization,'Bearer root-test');
+    assert.ok(request.signal instanceof AbortSignal);
     assert.deepEqual(res.body,{ok:true,message:'Key 已生成并复制到剪贴板。',key:'cb_test'});
     assert.doesNotMatch(JSON.stringify(res.body),/root-test|key_id/);
   } finally {
