@@ -113,7 +113,7 @@ test('receipt displays the daily request snapshot followed by request time', () 
 test('receipt ends with the service signature and version', () => {
  const version = createRequire(import.meta.url)('../package.json').version;
  const styledVersion = version.replace(/[0-9]/g, digit => [...'𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'][Number(digit)]);
- assert.ok(buildPreview(normalize(transaction,input)).endsWith(`确认以上信息后入账？\n\n𝓹𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓬𝓸𝓼𝓽𝓫𝓻𝓲𝓭𝓰𝓮 · 𝓿${styledVersion}`));
+ assert.ok(buildPreview(normalize(transaction,input)).endsWith(`确认以上信息后入账？\n\n𝓟𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓒𝓸𝓼𝓽𝓑𝓻𝓲𝓭𝓰𝓮 · 𝓿${styledVersion}`));
 });
 
 test('accepts JSON wrapped in a code fence from the model', async () => {
