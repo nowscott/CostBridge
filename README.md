@@ -42,7 +42,9 @@
 
 请求可选设置 `customPrompt` 为自定义规则文本（最多 2000 字，留空表示不使用额外规则），例如“Apple Pay 使用信用卡”。规则由模型判断，账户仍须来自账户列表。旧版 `ruleAccount` 在未提供 `customPrompt` 时继续启用原 Apple Pay/0822 规则。
 
-另提供 `POST /api/analyze-provider`，请求体与 `/api/analyze` 相同，可用请求体里的 `provider` 字段或查询参数 `?provider=` 选择供应商：`groq`、`qwen`、`sf`。不传或传其他值一律使用 `groq`；该接口只调用所选供应商，不自动切换。示例：`POST /api/analyze-provider?provider=sf`。响应中的 `provider` 始终表示实际使用的供应商。
+请求也可以在 JSON 请求体或查询参数里带上 `provider`：`groq`、`qwen`、`sf`。指定时只调用所选供应商，不自动切换；不传或无法识别时走默认链路（Groq → 千问 → 硅基流动）。示例：`{"provider":"sf", ...}` 或 `?provider=sf`。响应中的 `provider` 始终表示实际使用的供应商。
+
+另提供 `POST /api/analyze-provider`，参数与上面一致；区别是不传 `provider` 时只调用 `groq`，适合显式测试单个供应商。
 
 小票显示 Groq 本次响应返回的今日剩余请求次数及请求耗时；若 Groq 未提供限额，小票显示“未提供”。旧请求中的 `showTokens` 不再影响小票，token 用量仍记录在后台诊断日志中。
 
