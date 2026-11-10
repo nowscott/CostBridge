@@ -1,6 +1,10 @@
 import { createRequire } from 'node:module';
+import { MODELS } from './models.js';
 
 const version = createRequire(import.meta.url)('../package.json').version;
+const PLAIN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const STYLED = [...'𝓐𝓑𝓒𝓓𝓔𝓕𝓖𝓗𝓘𝓙𝓚𝓛𝓜𝓝𝓞𝓟𝓠𝓡𝓢𝓣𝓤𝓥𝓦𝓧𝓨𝓩𝓪𝓫𝓬𝓭𝓮𝓯𝓰𝓱𝓲𝓳𝓴𝓵𝓶𝓷𝓸𝓹𝓺𝓻𝓼𝓽𝓾𝓿𝔀𝔁𝔂𝔃𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'];
+const styleReceipt = text => text.replace(/[A-Za-z0-9]/g, char => STYLED[PLAIN.indexOf(char)]);
 
 export class AppError extends Error {
   constructor(code, message, status = 400) { super(message); this.code = code; this.status = status; }
@@ -79,12 +83,10 @@ export function buildIcostUrl(transaction) {
 export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = false) {
   const amount = `${tx.type === '支出' ? '−' : '+'}${Math.abs(tx.amount).toFixed(2)}`;
   const line = '┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈';
-  const plain = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const styled = [...'𝓐𝓑𝓒𝓓𝓔𝓕𝓖𝓗𝓘𝓙𝓚𝓛𝓜𝓝𝓞𝓟𝓠𝓡𝓢𝓣𝓤𝓥𝓦𝓧𝓨𝓩𝓪𝓫𝓬𝓭𝓮𝓯𝓰𝓱𝓲𝓳𝓴𝓵𝓶𝓷𝓸𝓹𝓺𝓻𝓼𝓽𝓾𝓿𝔀𝔁𝔂𝔃𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'];
   const accountNote = tx.warnings.some(warning => warning.startsWith('账户未识别')) ? '（默认）'
     : tx.warnings.some(warning => warning.startsWith('已按 Apple Pay') || warning.startsWith('模型已按自定义规则')) ? '（规则）' : '';
-  return [
-    `🧾  记账小票〔${usedFallback ? '千问 · 𝓠𝔀𝓮𝓷 𝟑.𝟖 𝓕𝓵𝓪𝓼𝓱' : '𝓖𝓻𝓸𝓺 · 𝓠𝔀𝓮𝓷 𝟑.𝟖 𝟐𝟕𝓑'}〕`,
+  return styleReceipt([
+    `🧾  记账小票〔${usedFallback ? MODELS.fallback.label : MODELS.primary.label}〕`,
     line,
     '',
     `${tx.type}  ${amount}\u00a0CNY`,
@@ -101,6 +103,6 @@ export function buildPreview(tx, rateLimits, elapsedSeconds, usedFallback = fals
     line,
     '确认以上信息后入账？',
     '',
-    `𝓟𝓸𝔀𝓮𝓻𝓮𝓭 𝓫𝔂 𝓒𝓸𝓼𝓽𝓑𝓻𝓲𝓭𝓰𝓮 · 𝓿${version}`
-  ].join('\n').replace(/[A-Za-z0-9]/g, char => styled[plain.indexOf(char)]);
+    `Powered by CostBridge · v${version}`
+  ].join('\n'));
 }

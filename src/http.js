@@ -1,6 +1,7 @@
 import { AppError, buildIcostUrl, buildPreview } from './core.js';
 import { verifyAccessKey } from './auth.js';
 import { analyze } from './service.js';
+import { MODELS } from './models.js';
 const LIMIT = 4200000;
 export async function handle(req, res, logCall = () => {}) {
   const started = performance.now();
@@ -20,7 +21,6 @@ export async function handle(req, res, logCall = () => {}) {
   try {
     const authorization = req.headers.authorization || '';
     if (!authorization.startsWith('Bearer ') || !authorization.slice(7)) throw new AppError('unauthorized','访问凭据无效。',401);
-    if (!process.env.UNKEY_ROOT_KEY) throw new AppError('configuration_error','服务尚未配置授权验证。',500);
     record.stage = 'auth';
     const authStarted = stageStarted = performance.now();
     const verifiedKey = await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
@@ -36,11 +36,11 @@ export async function handle(req, res, logCall = () => {}) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
     record.inputType = body?.image ? 'image' : body?.text ? 'text' : 'unknown';
     record.inputLength = body?.image?.length ?? body?.text?.length;
-    record.model = 'qwen/qwen3.8-27b';
+    record.model = MODELS.primary.model;
     record.stage = 'model';
     const modelStarted = stageStarted = performance.now();
-    const fallback = process.env.QWEN_API_KEY ? {apiKey:process.env.QWEN_API_KEY,baseUrl:'https://maas.qianwenaiapi.com/compatible-mode/v1',model:'qwen3.8-flash'} : undefined;
-    const {transaction, usage, rateLimits, model, usedFallback} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:'https://api.groq.com/openai/v1',model:'qwen/qwen3.8-27b',fallback}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
+    const fallback = process.env.QWEN_API_KEY ? {apiKey:process.env.QWEN_API_KEY,baseUrl:MODELS.fallback.baseUrl,model:MODELS.fallback.model} : undefined;
+    const {transaction, usage, rateLimits, model, usedFallback} = await analyze(body,{apiKey:process.env.GROQ_API_KEY,baseUrl:MODELS.primary.baseUrl,model:MODELS.primary.model,fallback}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
     record.resultModel = model;
     record.usedFallback = usedFallback;
     record.modelMs = Math.round(performance.now() - modelStarted);
