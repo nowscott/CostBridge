@@ -4,7 +4,7 @@
 
 它接过 iOS 快捷指令的截图或文字，结合 iCost 里的分类和账户，整理出一笔待确认的账。你看过、点头之后，才会跳转 iCost；它不会自己替你写账本，也不保存原始账单。毕竟 AI 擅长一本正经地猜，钱还是交给你自己管。
 
-[安装快捷指令 v0.5.0](https://www.icloud.com/shortcuts/7b87265906fc42b2b2eaf392651630d9) · [打开 CostBridge](https://cost.0211120.xyz/)
+[安装快捷指令 v0.5.0](https://www.icloud.com/shortcuts/d106478ee490406490b1f90b5c9b4a54) · [打开 CostBridge](https://cost.0211120.xyz/)
 
 安装前准备好 iCost 和个人授权码。导入时填写授权码、iCost 默认账户，想让它记住特殊规则也可以写一段自定义提示词；没有就留空。
 
