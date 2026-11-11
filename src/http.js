@@ -34,6 +34,7 @@ export async function handle(req, res, logCall = () => {}, options = {}) {
     res.statusCode = status;
     record.status = status;
     record.errorCode = body.ok ? null : body.error.code;
+    record.errorMessage = body.ok ? null : body.error.message;
     record.totalMs = Math.round(performance.now() - started);
     res.end(JSON.stringify({...body, shortcutResult: body.ok ? 'OK' : body.error.message}));
     logCall(record);

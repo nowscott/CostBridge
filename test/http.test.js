@@ -99,7 +99,7 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
  try {
   let payload, record;
   const response = {setHeader() {}, end(data) { payload = JSON.parse(data); }};
-  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{text:'午餐 12.50 元',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'}},response, value => { record = value; });
+  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{text:'午餐 12.50 元',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',now:'2026/11/07 16:06'}},response, value => { record = value; });
   assert.equal(response.statusCode,200);
   assert.equal(payload.ok,true);
   assert.equal(record.keyId,'key_example_123');
@@ -132,6 +132,7 @@ test('records diagnostic metadata without request content or credentials after r
     });
     assert.equal(record.status,401);
     assert.equal(record.stage,'auth');
+    assert.equal(record.errorMessage,'访问凭据无效或已停用。');
     assert.equal(record.keyId,undefined);
     assert.equal(typeof record.authMs,'number');
     assert.doesNotMatch(JSON.stringify(record),/root-secret|user-secret|private-bill/);

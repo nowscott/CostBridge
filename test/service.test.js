@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { analyze } from '../src/service.js';
 import { normalize, validateInput, buildIcostUrl, buildPreview, prompt } from '../src/core.js';
 import { createRequire } from 'node:module';
-const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',ruleAccount:'信用卡',now:'2026/11/07 16:06'};
+const input = {apiKey:'test-model-key',text:'虚构账单',expenseCategories:['餐饮','其他'],incomeCategories:['工资'],accounts:['信用卡','储蓄卡'],defaultAccount:'信用卡',now:'2026/11/07 16:06'};
 const provider = (overrides = {}) => ({key:'groq',label:'Groq · Qwen 3.8 27B',baseUrl:'https://example.test',model:'test',apiKey:'server-model-key',extra:{reasoning_effort:'none'},...overrides});
 const fallbackProvider = (overrides = {}) => ({key:'qwen',label:'千问 · Qwen 3.8 Flash',baseUrl:'https://fallback.test/v1',model:'qwen3.8-flash',apiKey:'fallback-key',extra:{enable_thinking:false},...overrides});
 const sfProvider = (overrides = {}) => ({key:'sf',label:'硅基流动 · Qwen3.5 4B',baseUrl:'https://sf.test/v1',model:'Qwen/Qwen3.5-4B',apiKey:'sf-key',extra:{enable_thinking:false},...overrides});
@@ -37,8 +37,10 @@ test('invalid default warns when the identified account is valid and stops other
  assert.match(prompt(invalid),/DEF:""/);
  await assert.rejects(analyze(invalid,config,fake({...transaction,account:''})), /账户未识别，且默认账户不在账户列表中/);
 });
-test('special rule selects configured account', () => {
- assert.equal(normalize({...transaction,accountRuleApplied:true},input).account,'信用卡');
+test('ignores the legacy ruleAccount field end to end', () => {
+ validateInput({...input, ruleAccount:'不存在'});
+ assert.equal(normalize({...transaction,accountRuleApplied:true},input).account,'储蓄卡');
+ assert.doesNotMatch(prompt(input), /Apple Pay or 0822/);
 });
 test('invalid values and malformed requests fail', () => {
  for (const change of [{amount:0},{amount:1.234},{date:'2026/02/30 09:00'},{category:'不存在'}]) assert.throws(()=>normalize({...transaction,...change},input));
