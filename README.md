@@ -82,6 +82,6 @@ Groq 响应包含限额信息时，调用诊断日志同时保存限额、恢复
 
 ### 每日微信使用汇报
 
-设置生产环境 `PUSHPLUS_TOKEN`（PushPlus 用户或消息 token）、`CALLLOG_DATABASE_URL` 和 `CRON_SECRET` 后，Vercel Cron 每天 UTC 01:00（北京时间 09:00）调用 `/api/daily-report`。Hobby 套餐实际可能在 09:00—09:59 执行。只统计前一天北京时间 00:00 至次日 00:00 的生产环境记账请求，按 Key ID 汇总、展示 Key 名称；未识别用户单列，备用模型恢复成功仍计为成功。无调用也发送日报。不发送原始截图、账单内容或完整 Key；服务返回成功不代表已写入 iCost。
+设置生产环境 `PUSHPLUS_TOKEN`（PushPlus 用户或消息 token）、`CALLLOG_DATABASE_URL` 和 `CRON_SECRET` 后，Vercel Cron 每天 UTC 01:00（北京时间 09:00）调用 `/api/daily-report`。Hobby 套餐实际可能在 09:00—09:59 执行。只统计前一天北京时间 00:00 至次日 00:00 的生产环境记账请求，按 Key ID 汇总、展示 Key 名称；鉴权被拒绝的请求不计入日报，其余未识别用户单列；备用模型恢复成功仍计为成功。无调用也发送日报。不发送原始截图、账单内容或完整 Key；服务返回成功不代表已写入 iCost。
 
 接口仅接受携带 `Authorization: Bearer <CRON_SECRET>` 的 GET 请求，返回简短执行状态。PushPlus 返回成功只表示接受发送，送达需结合接收端确认。可手动调用进行补发，但每次调用都会发送一份。发送失败返回 502 并输出 `daily_report_failed`，成功提交输出 `daily_report_accepted` 及消息流水号。

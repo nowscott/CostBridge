@@ -20,7 +20,7 @@ export async function readDailyRecords(period, databaseUrl) {
 }
 
 export function buildDailyReport(date, allRecords) {
-  const records = allRecords.filter(record => record.environment === 'production');
+  const records = allRecords.filter(record => record.environment === 'production' && record.status !== 401 && record.status !== 403 && record.errorCode !== 'unauthorized');
   const unclassified = allRecords.filter(record => !record.environment);
   const users = new Map();
   const unknown = records.filter(record => !record.keyId);
