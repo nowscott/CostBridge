@@ -32,7 +32,9 @@ export function buildDailyReport(date, allRecords) {
     user.records.push(record);
   }
   const succeeded = records.filter(record => record.status === 200).length;
-  const lines = [`CostBridge 每日报告｜${date}`, '统计：北京时间 00:00—24:00，仅生产环境', '',
+  const [, month, day] = date.split('-');
+  const title = `${Number(month)}月${Number(day)}日｜CostBridge`;
+  const lines = ['每日使用汇报', `统计日期：${date}（北京时间 00:00—24:00，仅生产环境）`, '',
     `${users.size} 位用户，${records.length} 次请求：成功 ${succeeded} 次，失败 ${records.length - succeeded} 次。`];
   if (unclassified.length) lines.push(`另有 ${unclassified.length} 条历史记录未标注环境，未计入以上生产统计。`);
   if (!records.length) lines.push(unclassified.length ? '昨日没有可明确归为生产环境的调用记录。' : '昨日无调用。');
@@ -62,7 +64,7 @@ export function buildDailyReport(date, allRecords) {
   if (timed.length) lines.push(`平均耗时 ${(timed.reduce((sum, record) => sum + record.totalMs, 0) / timed.length / 1000).toFixed(2)} 秒。`);
   lines.push(`备用模型接管 ${fallback.length} 次：成功 ${fallbackOk}，失败 ${fallback.length - fallbackOk}。`);
   lines.push('', '成功指服务返回记账结果，不代表已写入 iCost。');
-  return {title: `CostBridge 每日报告｜${date}`, content: lines.join('\n')};
+  return {title, content: lines.join('\n')};
 }
 
 export async function sendDailyReport(report, token, fetcher = fetch) {
