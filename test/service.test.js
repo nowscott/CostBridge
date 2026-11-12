@@ -226,3 +226,37 @@ test('Groq quota remains available when Groq is the successful backup', async ()
  assert.equal(result.rateLimits.dailyRequestsRemaining,'12');
  assert.equal(capturedModel,'test');
 });
+
+test('attempt diagnostics retain failures, decisions and successful usage without bill content', async () => {
+ const attempts = [];
+ let calls = 0;
+ const result = await analyze(input,{providers:[provider(),fallbackProvider(),sfProvider()]},async()=>{
+  calls++;
+  if(calls===1) throw new Error('sensitive upstream details');
+  if(calls===2) return {ok:false,status:429};
+  return {ok:true,status:200,json:async()=>({usage:{prompt_tokens:10,completion_tokens:5,total_tokens:15},choices:[{message:{content:JSON.stringify(transaction)}}]})};
+ },()=>{},attempt=>attempts.push(attempt));
+ assert.equal(result.provider,'sf');
+ assert.deepEqual(attempts.map(a=>[a.provider,a.outcome,a.errorCode,a.willFallback]),[
+  ['groq','failed','connection_error',true],['qwen','failed','model_error',true],['sf','success',undefined,undefined]
+ ]);
+ assert.equal(attempts[1].upstreamStatus,429);
+ assert.equal(attempts[2].usage.totalTokens,15);
+ for(const attempt of attempts) { assert.equal(typeof attempt.durationMs,'number');assert.ok(attempt.startedAt); }
+ assert.doesNotMatch(JSON.stringify(attempts),/sensitive upstream|虚构账单|server-model-key|午餐/);
+});
+
+test('terminal and malformed model failures are recorded once', async () => {
+ for(const [response,code] of [
+  [{ok:false,status:401},'model_error'],
+  [{ok:true,status:200,json:async()=>null},'model_invalid'],
+  [{ok:true,status:200,json:async()=>{throw new SyntaxError('private');}},'model_invalid'],
+  [{ok:true,status:200,json:async()=>({choices:[{message:{content:JSON.stringify({...transaction,amount:0})}}]})},'incomplete']
+ ]) {
+  const attempts=[];
+  await assert.rejects(analyze(input,{providers:[provider(),fallbackProvider()]},async()=>response,()=>{},a=>attempts.push(a)));
+  assert.equal(attempts.length,1);
+  assert.equal(attempts[0].errorCode,code);
+  assert.equal(attempts[0].willFallback,false);
+ }
+});

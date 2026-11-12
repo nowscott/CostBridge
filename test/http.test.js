@@ -258,7 +258,7 @@ test('daily endpoint orders configured backups after each preferred provider', a
  const run = async (provider, options) => {
   calls = [];
   const res = {setHeader(){},end(data){this.payload = JSON.parse(data);}};
-  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{...body,provider}},res,()=>{},options);
+  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{...body,provider}},res,value=>{res.record=value;},options);
   return res;
  };
  try {
@@ -266,6 +266,10 @@ test('daily endpoint orders configured backups after each preferred provider', a
    const res = await run(preferred);
    assert.deepEqual(calls,order);
    assert.equal(res.statusCode,502);
+   assert.equal(res.record.usedFallback,true);
+   assert.equal(res.record.lastAttemptProvider,order[2]);
+   assert.equal(res.record.attempts.length,3);
+   assert.equal(res.record.attempts[2].willFallback,false);
   }
   assert.equal(cancelled,9);
   await run('sf',{selectProvider:true});
@@ -292,8 +296,36 @@ test('daily endpoint orders configured backups after each preferred provider', a
   assert.equal(record.usedFallback,true);
   assert.equal(record.rateLimitsModel,'qwen/qwen3.8-27b');
   assert.equal(res.payload.rateLimits.dailyRequestsRemaining,'7');
+  assert.equal(record.attempts.length,2);
+  assert.equal(record.attempts[0].errorCode,'model_error');
+  assert.equal(record.attempts[1].outcome,'success');
  } finally {
   globalThis.fetch = originalFetch;
   names.forEach((name,index) => { if (saved[index] === undefined) delete process.env[name]; else process.env[name] = saved[index]; });
+ }
+});
+
+test('request tracing works for input failures without exposing query strings or secrets', async () => {
+ const saved={fetch:globalThis.fetch,root:process.env.UNKEY_ROOT_KEY,environment:process.env.VERCEL_ENV};
+ process.env.UNKEY_ROOT_KEY='private-root';process.env.VERCEL_ENV='preview';
+ globalThis.fetch=async()=>({ok:true,json:async()=>({data:{valid:true,keyId:'test-key-id'}})});
+ const headers={};let record;
+ const res={setHeader(name,value){headers[name]=value;},end(data){this.payload=JSON.parse(data);}};
+ try {
+  await handle({method:'POST',url:'/api/analyze?private=secret-query',headers:{authorization:'Bearer private-access','x-vercel-id':'platform-id'},body:{text:'private-bill'}},res,value=>{record=value;});
+  assert.equal(record.stage,'input');
+  assert.equal(record.errorCode,'invalid_input');
+  assert.equal(record.environment,'preview');
+  assert.equal(record.route,'/api/analyze');
+  assert.equal(record.platformRequestId,'platform-id');
+  assert.equal(res.payload.requestId,record.requestId);
+  assert.equal(headers['x-costbridge-request-id'],record.requestId);
+  assert.equal(typeof record.inputMs,'number');
+  assert.equal(record.modelMs,undefined);
+  assert.deepEqual(record.attempts,[]);
+  assert.doesNotMatch(JSON.stringify(record),/private-root|private-access|private-bill|secret-query/);
+ } finally {
+  globalThis.fetch=saved.fetch;
+  for(const [key,value] of [['UNKEY_ROOT_KEY',saved.root],['VERCEL_ENV',saved.environment]]) { if(value===undefined)delete process.env[key];else process.env[key]=value; }
  }
 });
