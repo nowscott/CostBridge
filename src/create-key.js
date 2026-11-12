@@ -25,20 +25,25 @@ export async function handleCreateKey(req, res, fetcher = fetch) {
   }
   if (typeof body?.name !== 'string' || !body.name.trim() || body.name.length > 255) return send(false, '请输入有效的 Key 名称。');
   let response;
+  let data;
   try {
     response = await fetchWithTimeout(fetcher, 'https://api.unkey.com/v2/keys.createKey', {
       method: 'POST',
       headers: {authorization: auth, 'content-type': 'application/json'},
       body: JSON.stringify({apiId: process.env.UNKEY_CREATE_API_ID, name: body.name.trim(), prefix: 'cb', byteLength: 32})
-    }, CREATE_KEY_TIMEOUT_MS);
-  } catch {
+    }, CREATE_KEY_TIMEOUT_MS, async response => {
+      if (response.ok) data = await response.json();
+      else await response.body?.cancel();
+      return response;
+    });
+  } catch (error) {
+    if (error instanceof SyntaxError) return send(false, 'Unkey 响应无法解析，Key 可能已经创建，请先检查后台。');
     return send(false, '连接 Unkey 失败，Key 可能已经创建，请先检查 Unkey 后台。');
   }
   if (response.status === 401 || response.status === 403) return send(false, 'Root Key 无效或权限不足。');
   if (response.status === 429) return send(false, 'Unkey 请求过于频繁，请稍后再试。');
   if (!response.ok) return send(false, `Unkey 创建失败（HTTP ${response.status}），请检查后台。`);
-  let data;
-  try { data = await response.json(); } catch { return send(false, 'Unkey 响应无法解析，Key 可能已经创建，请先检查后台。'); }
+
   if (typeof data?.data?.key !== 'string' || !data.data.key.trim()) return send(false, 'Unkey 未返回 Key，Key 可能已经创建，请先检查后台。');
   return send(true, 'Key 已生成并复制到剪贴板。', data.data.key);
 }

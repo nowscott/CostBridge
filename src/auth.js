@@ -14,13 +14,24 @@ const INVALID_KEY_MESSAGES = new Map([
 export async function verifyAccessKey(accessKey, { rootKey, fetcher = fetch, timeoutMs = AUTH_TIMEOUT_MS } = {}) {
   if (!rootKey) throw new AppError('configuration_error', '服务尚未配置授权验证。', 500);
   let response;
+  let payload;
   try {
     response = await fetchWithTimeout(fetcher, 'https://api.unkey.com/v2/keys.verifyKey', {
       method: 'POST',
       headers: { authorization: `Bearer ${rootKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({ key: accessKey })
-    }, timeoutMs);
-  } catch {
+    }, timeoutMs, async (response, signal) => {
+      if (response.ok) {
+        try { payload = await response.json(); }
+        catch (error) {
+          if (signal.aborted) throw error;
+          throw new AppError('auth_unavailable', '授权验证服务返回内容无法识别，请稍后再试。', 503);
+        }
+      } else await response.body?.cancel();
+      return response;
+    });
+  } catch (error) {
+    if (error instanceof AppError) throw error;
     throw new AppError('auth_unavailable', '授权验证服务连接失败，请稍后再试。', 503);
   }
   if (response.status === 429) throw new AppError('auth_unavailable', '授权验证服务繁忙，请稍后再试。', 503);
@@ -29,10 +40,7 @@ export async function verifyAccessKey(accessKey, { rootKey, fetcher = fetch, tim
     error.upstreamStatus = response.status;
     throw error;
   }
-  let payload;
-  try { payload = await response.json(); } catch {
-    throw new AppError('auth_unavailable', '授权验证服务返回内容无法识别，请稍后再试。', 503);
-  }
+
   const data = payload?.data;
   if (!data || typeof data.valid !== 'boolean') {
     throw new AppError('auth_unavailable', '授权验证服务返回内容无法识别，请稍后再试。', 503);

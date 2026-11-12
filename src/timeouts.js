@@ -5,11 +5,12 @@ export const CREATE_KEY_TIMEOUT_MS = 10000;
 
 // Uses a ref'd timer (cleared on settle) so the timeout also holds when the
 // process has no other active handles, such as in unit tests.
-export async function fetchWithTimeout(fetcher, url, options, timeoutMs) {
+export async function fetchWithTimeout(fetcher, url, options, timeoutMs, consume) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetcher(url, { ...options, signal: controller.signal });
+    const response = await fetcher(url, { ...options, signal: controller.signal });
+    return await consume(response, controller.signal);
   } finally {
     clearTimeout(timer);
   }

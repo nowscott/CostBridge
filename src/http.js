@@ -8,12 +8,8 @@ function providerConfig(key) {
   return { key, ...PROVIDERS[key], apiKey: process.env[PROVIDERS[key].apiKeyEnv] };
 }
 
-function defaultProviders() {
-  return [
-    providerConfig('groq'),
-    ...(process.env.QWEN_API_KEY ? [providerConfig('qwen')] : []),
-    ...(process.env.SF_API_KEY ? [providerConfig('sf')] : [])
-  ];
+function defaultProviders(preferred) {
+  return [preferred, ...Object.keys(PROVIDERS).filter(key => key !== preferred && process.env[PROVIDERS[key].apiKeyEnv])].map(providerConfig);
 }
 
 function providerParam(req, body) {
@@ -58,14 +54,14 @@ export async function handle(req, res, logCall = () => {}, options = {}) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { throw new AppError('invalid_json','请求不是有效的 JSON。'); } }
     const requestedProvider = providerParam(req, body);
     const providerKey = requestedProvider ?? DEFAULT_PROVIDER;
-    const providers = (requestedProvider || options.selectProvider) ? [providerConfig(providerKey)] : defaultProviders();
+    const providers = options.selectProvider ? [providerConfig(providerKey)] : defaultProviders(providerKey);
     record.provider = providerKey;
     record.inputType = body?.image ? 'image' : body?.text ? 'text' : 'unknown';
     record.inputLength = body?.image?.length ?? body?.text?.length;
     record.model = providers[0].model;
     record.stage = 'model';
     const modelStarted = stageStarted = performance.now();
-    const {transaction, usage, rateLimits, model, provider, usedFallback} = await analyze(body,{providers}, fetch, (limits, time) => { record.rateLimits = limits; record.rateLimitsTime = time; });
+    const {transaction, usage, rateLimits, model, provider, usedFallback} = await analyze(body,{providers}, fetch, (limits, time, model) => { record.rateLimitsModel = model; record.rateLimits = limits; record.rateLimitsTime = time; });
     record.resultModel = model;
     record.resultProvider = provider;
     record.usedFallback = usedFallback;

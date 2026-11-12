@@ -241,3 +241,59 @@ test('selects an explicit provider from query or body and keeps the default chai
   }
  }
 });
+
+test('daily endpoint orders configured backups after each preferred provider', async () => {
+ const names = ['UNKEY_ROOT_KEY','GROQ_API_KEY','QWEN_API_KEY','SF_API_KEY'];
+ const saved = names.map(name => process.env[name]);
+ const originalFetch = globalThis.fetch;
+ names.forEach(name => { process.env[name] = 'test'; });
+ const body = {text:'午餐',expenseCategories:['餐饮'],incomeCategories:['工资'],accounts:['卡'],defaultAccount:'卡'};
+ const orders = {groq:['groq','qwen','sf'],qwen:['qwen','groq','sf'],sf:['sf','groq','qwen']};
+ let calls = [], cancelled = 0;
+ globalThis.fetch = async url => {
+  if (url.includes('unkey')) return {ok:true,json:async()=>({data:{valid:true}})};
+  calls.push(url.includes('siliconflow') ? 'sf' : url.includes('groq') ? 'groq' : 'qwen');
+  return {ok:false,status:503,body:{cancel:async()=>{cancelled++;}}};
+ };
+ const run = async (provider, options) => {
+  calls = [];
+  const res = {setHeader(){},end(data){this.payload = JSON.parse(data);}};
+  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{...body,provider}},res,()=>{},options);
+  return res;
+ };
+ try {
+  for (const [preferred, order] of Object.entries(orders)) {
+   const res = await run(preferred);
+   assert.deepEqual(calls,order);
+   assert.equal(res.statusCode,502);
+  }
+  assert.equal(cancelled,9);
+  await run('sf',{selectProvider:true});
+  assert.deepEqual(calls,['sf']);
+  delete process.env.QWEN_API_KEY;
+  await run('sf');
+  assert.deepEqual(calls,['sf','groq']);
+  const missing = await run('qwen');
+  assert.equal(missing.payload.error.code,'configuration_error');
+  assert.deepEqual(calls,[]);
+  process.env.QWEN_API_KEY = 'test';
+  let record;
+  globalThis.fetch = async url => {
+   if (url.includes('unkey')) return {ok:true,json:async()=>({data:{valid:true}})};
+   if (url.includes('siliconflow')) return {ok:false,status:429};
+   return {ok:true,headers:new Headers({'x-ratelimit-remaining-requests':'7'}),json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/12 12:00',type:'支出',amount:-12,category:'餐饮',remark:'午餐',account:'卡'})}}]})};
+  };
+  const res = {setHeader(){},end(data){this.payload=JSON.parse(data);}};
+  await handle({method:'POST',headers:{authorization:'Bearer test'},body:{...body,provider:'sf'}},res,value=>{record=value;});
+  assert.equal(res.payload.provider,'groq');
+  assert.match(res.payload.preview,/𝓖𝓻𝓸𝓺/);
+  assert.equal(record.provider,'sf');
+  assert.equal(record.resultProvider,'groq');
+  assert.equal(record.usedFallback,true);
+  assert.equal(record.rateLimitsModel,'qwen/qwen3.8-27b');
+  assert.equal(res.payload.rateLimits.dailyRequestsRemaining,'7');
+ } finally {
+  globalThis.fetch = originalFetch;
+  names.forEach((name,index) => { if (saved[index] === undefined) delete process.env[name]; else process.env[name] = saved[index]; });
+ }
+});

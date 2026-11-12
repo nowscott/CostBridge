@@ -10,6 +10,7 @@ export async function analyze(body, config, fetcher = fetch, onRateLimits = () =
   else content.push({type:'text', text:input.text});
   const timeoutMs = config.timeoutMs ?? MODEL_TIMEOUT_MS;
   let response;
+  let payload;
   let provider;
   let usedFallback = false;
   let rateLimits = null;
@@ -24,17 +25,30 @@ export async function analyze(body, config, fetcher = fetch, onRateLimits = () =
         method:'POST',
         headers:{'content-type':'application/json', authorization:`Bearer ${provider.apiKey}`},
         body:JSON.stringify({model:provider.model, ...provider.extra, temperature:0, response_format:{type:'json_object'}, messages:[{role:'user',content}]})
-      }, timeoutMs);
-    } catch {
+      }, timeoutMs, async response => {
+        if (provider.key === 'groq' && response.headers) {
+          rateLimits = readRateLimits(response);
+          if (rateLimits && Object.values(rateLimits).some(value => value !== null)) onRateLimits(rateLimits, new Date().toISOString(), provider.model);
+        }
+
+        if (!response.ok) {
+          await response.body?.cancel();
+          return response;
+        }
+        try { payload = await response.json(); }
+        catch (error) {
+          if (error instanceof SyntaxError) throw new AppError('model_invalid', '模型返回内容无法识别。', 502);
+          throw error;
+        }
+        return response;
+      });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
       if (index === providers.length - 1) {
         throw new AppError('model_unavailable', providers.length > 1 ? '主模型和备用模型均无法连接，请稍后再试。' : '模型服务连接失败，请稍后再试。', 502);
       }
       usedFallback = true;
       continue;
-    }
-    if (index === 0 && provider.key === 'groq' && response.headers) {
-      rateLimits = readRateLimits(response);
-      if (rateLimits && Object.values(rateLimits).some(value => value !== null)) onRateLimits(rateLimits, new Date().toISOString());
     }
     if ((response.status === 429 || response.status >= 500) && index < providers.length - 1) {
       usedFallback = true;
@@ -47,13 +61,11 @@ export async function analyze(body, config, fetcher = fetch, onRateLimits = () =
     error.upstreamStatus = response.status;
     throw error;
   }
-  let payload;
-  try { payload = await response.json(); } catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
   const result = parseModelContent(payload);
   return {
     transaction: normalize(result, input),
     usage: payload.usage,
-    rateLimits: provider.key === 'groq' && !usedFallback ? rateLimits : null,
+    rateLimits: provider.key === 'groq' ? rateLimits : null,
     model: provider.model,
     provider: provider.key,
     usedFallback
