@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { AppError, buildIcostUrl, buildPreview } from './core.js';
 import { verifyAccessKey } from './auth.js';
 import { analyze } from './service.js';
@@ -23,28 +24,31 @@ function providerParam(req, body) {
 export async function handle(req, res, logCall = () => {}, options = {}) {
   const started = performance.now();
   let stageStarted = started;
-  const record = {time: new Date().toISOString(), requestId: req.headers['x-vercel-id'], method: req.method, region: process.env.VERCEL_REGION, deployment: process.env.VERCEL_GIT_COMMIT_SHA, contentLength: req.headers['content-length'], stage: 'request'};
+  const record = {time: new Date().toISOString(), requestId: randomUUID(), platformRequestId: req.headers['x-vercel-id'], environment: process.env.VERCEL_ENV || 'local', route: new URL(req.url || '/api/analyze', 'http://localhost').pathname, attempts: [], method: req.method, region: process.env.VERCEL_REGION, deployment: process.env.VERCEL_GIT_COMMIT_SHA, contentLength: req.headers['content-length'], stage: 'request'};
   res.setHeader('content-type','application/json; charset=utf-8');
   res.setHeader('cache-control','no-store');
+  res.setHeader('x-costbridge-request-id',record.requestId);
   const send = (status, body) => {
     res.statusCode = status;
     record.status = status;
     record.errorCode = body.ok ? null : body.error.code;
     record.errorMessage = body.ok ? null : body.error.message;
     record.totalMs = Math.round(performance.now() - started);
-    res.end(JSON.stringify({...body, shortcutResult: body.ok ? 'OK' : body.error.message}));
+    res.end(JSON.stringify({...body, requestId:record.requestId, shortcutResult: body.ok ? 'OK' : body.error.message}));
     logCall(record);
   };
   if (req.method !== 'POST') return send(405,{ok:false,error:{code:'method_not_allowed',message:'请使用 POST。'}});
   try {
+    record.stage = 'auth';
+    stageStarted = performance.now();
     const authorization = req.headers.authorization || '';
     if (!authorization.startsWith('Bearer ') || !authorization.slice(7)) throw new AppError('unauthorized','访问凭据无效。',401);
-    record.stage = 'auth';
-    const authStarted = stageStarted = performance.now();
+    const authStarted = stageStarted;
     const verifiedKey = await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
     record.keyId = verifiedKey.keyId;
     record.authMs = Math.round(performance.now() - authStarted);
     record.stage = 'input';
+    stageStarted = performance.now();
     let body = req.body;
     if (body === undefined) {
       let raw = '';
@@ -59,9 +63,14 @@ export async function handle(req, res, logCall = () => {}, options = {}) {
     record.inputType = body?.image ? 'image' : body?.text ? 'text' : 'unknown';
     record.inputLength = body?.image?.length ?? body?.text?.length;
     record.model = providers[0].model;
-    record.stage = 'model';
-    const modelStarted = stageStarted = performance.now();
-    const {transaction, usage, rateLimits, model, provider, usedFallback} = await analyze(body,{providers}, fetch, (limits, time, model) => { record.rateLimitsModel = model; record.rateLimits = limits; record.rateLimitsTime = time; });
+    let modelStarted;
+    const onValidated = () => { record.inputMs = Math.round(performance.now() - stageStarted); record.stage = 'model'; modelStarted = stageStarted = performance.now(); };
+    const {transaction, usage, rateLimits, model, provider, usedFallback} = await analyze(body,{providers,onValidated}, fetch, (limits, time, model) => { record.rateLimitsModel = model; record.rateLimits = limits; record.rateLimitsTime = time; }, attempt => {
+      record.attempts.push(attempt);
+      record.lastAttemptProvider = attempt.provider;
+      record.lastAttemptModel = attempt.model;
+      record.usedFallback = record.attempts.length > 1;
+    });
     record.resultModel = model;
     record.resultProvider = provider;
     record.usedFallback = usedFallback;
@@ -71,6 +80,7 @@ export async function handle(req, res, logCall = () => {}, options = {}) {
     send(200,{ok:true,error:'',provider,transaction,preview:buildPreview(transaction, rateLimits, (performance.now() - started) / 1000, provider),icostUrl:buildIcostUrl(transaction),rateLimits,rateLimitsTime:rateLimits ? record.rateLimitsTime : undefined});
   } catch (error) {
     if (record.stage === 'auth') record.authMs = Math.round(performance.now() - stageStarted);
+    if (record.stage === 'input') record.inputMs = Math.round(performance.now() - stageStarted);
     if (record.stage === 'model') record.modelMs = Math.round(performance.now() - stageStarted);
     if (error.upstreamStatus) record.upstreamStatus = error.upstreamStatus;
     const known = error instanceof AppError;

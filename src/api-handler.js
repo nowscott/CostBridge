@@ -8,10 +8,10 @@ export function createHandler(options = {}) {
       if (!process.env.CALLLOG_DATABASE_URL) return;
       try {
         waitUntil(new Promise(resolve => setImmediate(resolve)).then(() => writeCallLog(record)).catch(() => {
-          console.error('call_log_write_failed');
+          console.error('call_log_write_failed', {requestId:record.requestId, platformRequestId:record.platformRequestId, environment:record.environment, route:record.route, deployment:record.deployment});
         }));
       } catch {
-        console.error('call_log_schedule_failed');
+        console.error('call_log_schedule_failed', {requestId:record.requestId, platformRequestId:record.platformRequestId, environment:record.environment, route:record.route, deployment:record.deployment});
       }
     }, options);
   };

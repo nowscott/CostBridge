@@ -18,10 +18,13 @@ test('real HTTP stalled bodies time out for models, authorization and key creati
  t.after(()=>{server.closeAllConnections();server.close();});
  await t.test('model aborts body and tries the backup',async()=>{
   let calls = 0;
+  const attempts = [];
   const result = await analyze(input,{timeoutMs:100,providers:[{key:'groq',baseUrl:url,apiKey:'test'},{key:'qwen',baseUrl:url,apiKey:'test'}]},async(_,options)=>{
    if (++calls === 1) return fetch(url,options);
    return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(tx)}}]})};
-  });
+  },()=>{},attempt=>attempts.push(attempt));
+  assert.equal(attempts[0].errorCode,'timeout');
+  assert.equal(attempts[0].willFallback,true);
   assert.equal(calls,2);
   assert.equal(result.provider,'qwen');
  });
