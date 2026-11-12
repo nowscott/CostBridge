@@ -51,7 +51,7 @@ ORDER BY created_at DESC, id DESC LIMIT 100;
 SELECT record->>'deployment' AS deployment,
        count(*) AS requests,
        count(*) FILTER (WHERE (record->>'status')::integer >= 400) AS errors,
-       count(*) FILTER (WHERE record->>'usedFallback' = 'true') AS successful_fallbacks,
+       count(*) FILTER (WHERE record->>'usedFallback' = 'true') AS fallback_requests,
        max(created_at) AT TIME ZONE 'Asia/Shanghai' AS latest_shanghai
 FROM call_logs
 WHERE created_at >= now() - interval '24 hours'
