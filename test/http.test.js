@@ -94,7 +94,7 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
  process.env.UNKEY_ROOT_KEY = 'test-root-key';
  process.env.GROQ_API_KEY = 'test-model-key';
  globalThis.fetch = async (url) => String(url).includes('unkey')
-  ? {ok:true,status:200,json:async()=>({data:{valid:true,keyId:'key_example_123'}})}
+  ? {ok:true,status:200,json:async()=>({data:{valid:true,keyId:'key_example_123',name:'Example Key'}})}
   : {ok:true,status:200,headers:new Headers({'x-ratelimit-remaining-requests':'987','x-ratelimit-limit-requests':'1000'}),json:async()=>({choices:[{message:{content:JSON.stringify({date:'2026/11/07 15:30',type:'支出',amount:-12.5,category:'餐饮',remark:'午餐',account:'储蓄卡'})}}],usage:{total_tokens:123}})};
  try {
   let payload, record;
@@ -103,6 +103,7 @@ test('accepts a pre-parsed body from the platform and returns a preview', async 
   assert.equal(response.statusCode,200);
   assert.equal(payload.ok,true);
   assert.equal(record.keyId,'key_example_123');
+  assert.equal(record.keyName,'Example Key');
   assert.doesNotMatch(JSON.stringify(record),/test-root-key|test-model-key|午餐/);
   assert.equal(payload.transaction.amount,-12.5);
   assert.match(payload.preview,/𝟏𝟐\.𝟓𝟎/);
