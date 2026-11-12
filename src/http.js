@@ -46,6 +46,7 @@ export async function handle(req, res, logCall = () => {}, options = {}) {
     const authStarted = stageStarted;
     const verifiedKey = await verifyAccessKey(authorization.slice(7), {rootKey: process.env.UNKEY_ROOT_KEY});
     record.keyId = verifiedKey.keyId;
+    record.keyName = verifiedKey.name;
     record.authMs = Math.round(performance.now() - authStarted);
     record.stage = 'input';
     stageStarted = performance.now();

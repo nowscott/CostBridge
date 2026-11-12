@@ -5,12 +5,19 @@
   "functions": {
     "api/analyze.js": {
       "maxDuration": 60
+    },
+    "api/daily-report.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/cleanup-call-logs",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/daily-report",
+      "schedule": "0 1 * * *"
     }
   ]
 }
