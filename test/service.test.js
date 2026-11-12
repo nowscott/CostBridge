@@ -204,3 +204,25 @@ test('captures quota headers from failed model calls', async () => {
   assert.throws(()=>validateInput({...input, customPrompt:123}), /自定义提示词/);
   assert.throws(()=>validateInput({...input, customPrompt:'字'.repeat(2001)}), /自定义提示词/);
  });
+
+test('does not retry malformed JSON or invalid transaction results', async () => {
+ for (const json of [async()=>{throw new SyntaxError('bad JSON');}, async()=>({choices:[{message:{content:JSON.stringify({...transaction,amount:0})}}]})]) {
+  let calls = 0;
+  await assert.rejects(analyze(input,{providers:[provider(),fallbackProvider()]},async()=>{
+   calls++;
+   return {ok:true,json};
+  }));
+  assert.equal(calls,1);
+ }
+});
+
+test('Groq quota remains available when Groq is the successful backup', async () => {
+ let calls = 0, capturedModel;
+ const result = await analyze(input,{providers:[sfProvider(),provider()]},async()=>{
+  if (++calls === 1) return {ok:false,status:429};
+  return {ok:true,headers:new Headers({'x-ratelimit-remaining-requests':'12'}),json:async()=>({choices:[{message:{content:JSON.stringify(transaction)}}]})};
+ }, (limits,time,model)=>{capturedModel=model;});
+ assert.equal(result.provider,'groq');
+ assert.equal(result.rateLimits.dailyRequestsRemaining,'12');
+ assert.equal(capturedModel,'test');
+});
