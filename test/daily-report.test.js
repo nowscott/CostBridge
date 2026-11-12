@@ -7,20 +7,22 @@ test('daily period uses Shanghai calendar days, including year boundaries', () =
   assert.equal(previousShanghaiDay(new Date('2026-12-31T16:00:00Z')).date, '2026-12-31');
 });
 
-test('report groups by key ID, separates unknown callers, and counts recovered fallback as success', () => {
+test('report excludes rejected authentication and counts recovered fallback as success', () => {
   const report = buildDailyReport('2026-11-12', [
     {environment:'production', keyId:'a', keyName:'用户甲', status:200, totalMs:1000, usedFallback:true},
     {environment:'production', keyId:'a', keyName:'用户甲', status:502, totalMs:3000, errorMessage:'模型超时', usedFallback:true},
     {environment:'production', keyId:'b', keyName:'用户乙', status:200, totalMs:2000},
-    {environment:'production', status:401, errorMessage:'访问凭据无效。', totalMs:0}
+    {environment:'production', status:401, errorMessage:'访问凭据无效。', totalMs:0},
+    {environment:'production', status:403, errorCode:'unauthorized', totalMs:0},
+    {environment:'production', status:502, errorCode:'unauthorized', totalMs:0}
   ]);
   assert.equal(report.title, '11月12日｜CostBridge');
   assert.match(report.content, /^每日使用汇报\n统计日期：2026-11-12/);
-  assert.match(report.content, /2 位用户，4 次请求：成功 2 次，失败 2 次/);
+  assert.match(report.content, /2 位用户，3 次请求：成功 2 次，失败 1 次/);
   assert.match(report.content, /用户甲：2 次，成功 1，失败 1/);
-  assert.match(report.content, /未识别用户：1 次/);
+  assert.doesNotMatch(report.content, /未识别用户|访问凭据无效/);
   assert.match(report.content, /用户甲：模型超时（1 次）/);
-  assert.match(report.content, /平均耗时 1.50 秒/);
+  assert.match(report.content, /平均耗时 2.00 秒/);
   assert.match(report.content, /备用模型接管 2 次：成功 1，失败 1/);
   assert.match(buildDailyReport('2026-11-12', []).content, /昨日无调用/);
   assert.match(buildDailyReport('2026-11-12', [{status:200}]).content, /1 条历史记录未标注环境/);
