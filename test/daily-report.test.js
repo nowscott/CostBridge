@@ -37,8 +37,8 @@ test('PushPlus submission checks both HTTP and application status', async () => 
   });
   assert.equal(id, 'message-id');
   assert.deepEqual(sent, {token:'secret', title:'日报', content:'内容', template:'txt'});
-  await assert.rejects(sendDailyReport({}, 'secret', async () => ({ok:true, json:async () => ({code:600})})), /pushplus_code_600/);
-  await assert.rejects(sendDailyReport({}, 'secret', async () => ({ok:false, status:500})), /pushplus_http_500/);
+  await assert.rejects(sendDailyReport({}, 'secret', async () => ({ok:true, json:async () => ({code:600})})), {code:'pushplus_code_600'});
+  await assert.rejects(sendDailyReport({}, 'secret', async () => ({ok:false, status:500})), {code:'pushplus_http_500'});
 });
 
 test('daily endpoint protects access, reports send failure, and returns no user data', async () => {
@@ -48,9 +48,14 @@ test('daily endpoint protects access, reports send failure, and returns no user 
   console.error = console.info = () => {};
   Object.assign(process.env, {CRON_SECRET:'cron', CALLLOG_DATABASE_URL:'database', PUSHPLUS_TOKEN:'push'});
   try {
-    let reads = 0, fail = false;
-    const handler = createDailyReportHandler({now:() => new Date('2026-11-13T01:00:00Z'), readRecords:async period => {
+    let reads = 0, fail = false, readFail = false, auditStartFail = false, auditFinishFail = false;
+    const audits = [];
+    const handler = createDailyReportHandler({writeAudit:async record => {
+      if (record.event === 'started' ? auditStartFail : auditFinishFail) throw new Error('storage unavailable');
+      audits.push({...record});
+    }, now:() => new Date('2026-11-13T01:00:00Z'), readRecords:async period => {
       reads++;
+      if (readFail) throw new Error('database password');
       assert.equal(period.date, '2026-11-12');
       return [{environment:'production', keyId:'id', keyName:'私有名称', status:200}];
     }, sendReport:async report => {
@@ -63,15 +68,42 @@ test('daily endpoint protects access, reports send failure, and returns no user 
     await handler({method:'GET', headers:{}}, res);
     assert.equal(res.statusCode, 401);
     assert.equal(reads, 0);
+    assert.equal(audits[0].event, 'started');
+    assert.equal(audits[1].errorCode, 'unauthorized');
     res = response();
     await handler({method:'GET', headers:{authorization:'Bearer cron'}}, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body, 'OK');
+    assert.equal(audits[3].event, 'accepted');
+    assert.equal(audits[3].messageId, 'message');
+    assert.equal(audits[2].runId, audits[3].runId);
     fail = true;
     res = response();
     await handler({method:'GET', headers:{authorization:'Bearer cron'}}, res);
     assert.equal(res.statusCode, 502);
     assert.doesNotMatch(res.body, /私有名称|secret/);
+    assert.equal(audits[5].stage, 'send');
+    assert.equal(audits[5].errorCode, 'pushplus_error');
+    fail = false;
+    readFail = true;
+    res = response();
+    await handler({method:'GET', headers:{authorization:'Bearer cron'}}, res);
+    assert.equal(res.statusCode, 502);
+    assert.equal(audits.at(-1).stage, 'read_records');
+    assert.equal(audits.at(-1).errorCode, 'database_error');
+    readFail = false;
+    auditFinishFail = true;
+    res = response();
+    await handler({method:'GET', headers:{authorization:'Bearer cron'}}, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(audits.at(-1).event, 'started');
+    auditStartFail = true;
+    const readsBefore = reads;
+    res = response();
+    await handler({method:'GET', headers:{authorization:'Bearer cron'}}, res);
+    assert.equal(res.statusCode, 503);
+    assert.equal(reads, readsBefore);
+    assert.doesNotMatch(JSON.stringify(audits), /私有名称|upstream secret|database password|Bearer|"database"|"push"/);
   } finally {
     names.forEach((name, i) => {if (previous[i] === undefined) delete process.env[name]; else process.env[name] = previous[i];});
     console.error = originalError;
