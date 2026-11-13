@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { writeCallLog } from './call-log.js';
 import { neon } from '@neondatabase/serverless';
 import { fetchWithTimeout } from './timeouts.js';
 
@@ -72,37 +74,75 @@ export async function sendDailyReport(report, token, fetcher = fetch) {
     method: 'POST', headers: {'content-type': 'application/json'},
     body: JSON.stringify({token, ...report, template: 'txt'})
   }, 10000, async response => {
-    if (!response.ok) throw new Error(`pushplus_http_${response.status}`);
+    if (!response.ok) throw Object.assign(new Error('PushPlus HTTP error'), {code:`pushplus_http_${response.status}`});
     const payload = await response.json();
-    if (payload.code !== 200) throw new Error(`pushplus_code_${payload.code}`);
+    if (payload.code !== 200) throw Object.assign(new Error('PushPlus rejected submission'), {code:`pushplus_code_${payload.code}`});
     return payload.data;
   });
 }
 
-export function createDailyReportHandler({readRecords = readDailyRecords, sendReport = sendDailyReport, now = () => new Date()} = {}) {
+export function createDailyReportHandler({readRecords = readDailyRecords, sendReport = sendDailyReport, writeAudit = writeCallLog, now = () => new Date()} = {}) {
   return async function dailyReport(req, res) {
     res.setHeader('cache-control', 'no-store');
     if (req.method !== 'GET') { res.statusCode = 405; return res.end(); }
-    if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-      res.statusCode = 401;
-      return res.end();
-    }
-    if (!process.env.CALLLOG_DATABASE_URL || !process.env.PUSHPLUS_TOKEN) {
+    const started = now();
+    const period = previousShanghaiDay(started);
+    const run = {kind:'daily_report_run', runId:randomUUID(), time:started.toISOString(), reportDate:period.date,
+      route:'/api/daily-report', environment:process.env.VERCEL_ENV || 'local',
+      deployment:process.env.VERCEL_GIT_COMMIT_SHA, platformRequestId:req.headers['x-vercel-id'],
+      cronSchedule:req.headers['x-vercel-cron-schedule'], event:'started', stage:'auth'};
+    res.setHeader('x-costbridge-report-run-id', run.runId);
+    if (!process.env.CALLLOG_DATABASE_URL) {
+      console.error('daily_report_database_unconfigured', {runId:run.runId});
       res.statusCode = 503;
       return res.end('Daily report is not configured');
     }
-    const period = previousShanghaiDay(now());
-    try {
-      const records = await readRecords(period, process.env.CALLLOG_DATABASE_URL);
-      const report = buildDailyReport(period.date, records);
-      const messageId = await sendReport(report, process.env.PUSHPLUS_TOKEN);
-      console.info('daily_report_accepted', {date: period.date, requests: records.length, messageId});
-      res.statusCode = 200;
-      res.end('OK');
-    } catch {
-      console.error('daily_report_failed', {date: period.date});
-      res.statusCode = 502;
-      res.end('Daily report failed');
+    // Persist arrival before querying or sending, so an interrupted run remains visible.
+    try { await writeAudit({...run}, process.env.CALLLOG_DATABASE_URL); }
+    catch {
+      console.error('daily_report_audit_failed', {runId:run.runId, event:'started'});
+      res.statusCode = 503;
+      return res.end('Daily report audit unavailable');
     }
+    let status = 200;
+    try {
+      if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+        status = 401;
+        throw Object.assign(new Error('Unauthorized'), {code:'unauthorized'});
+      }
+      run.stage = 'configuration';
+      if (!process.env.PUSHPLUS_TOKEN) {
+        status = 503;
+        throw Object.assign(new Error('PushPlus is not configured'), {code:'configuration_error'});
+      }
+      run.stage = 'read_records';
+      const records = await readRecords(period, process.env.CALLLOG_DATABASE_URL);
+      run.sourceRecords = records.length;
+      run.stage = 'build_report';
+      const report = buildDailyReport(period.date, records);
+      run.stage = 'send';
+      run.messageId = await sendReport(report, process.env.PUSHPLUS_TOKEN);
+      run.event = 'accepted';
+      console.info('daily_report_accepted', {runId:run.runId, date:period.date, messageId:run.messageId});
+    } catch (error) {
+      run.event = 'failed';
+      // Only allow our own PushPlus codes; never store raw upstream messages or credentials.
+      run.errorCode = run.stage === 'auth' ? 'unauthorized' : run.stage === 'configuration' ? 'configuration_error'
+        : run.stage === 'read_records' ? 'database_error' : run.stage === 'build_report' ? 'report_error'
+        : /^pushplus_(http|code)_\d+$/.test(error.code) ? error.code
+        : ['AbortError','TimeoutError'].includes(error.name) ? 'pushplus_timeout' : 'pushplus_error';
+      if (status === 200) status = 502;
+      console.error('daily_report_failed', {runId:run.runId, date:period.date, stage:run.stage, errorCode:run.errorCode});
+    }
+    run.status = status;
+    run.finishedAt = now().toISOString();
+    run.totalMs = new Date(run.finishedAt).getTime() - started.getTime();
+    try { await writeAudit(run, process.env.CALLLOG_DATABASE_URL); }
+    catch {
+      // A delivered submission must not be reported as a failed send merely because audit storage failed.
+      console.error('daily_report_audit_failed', {runId:run.runId, event:run.event, messageId:run.messageId});
+    }
+    res.statusCode = status;
+    res.end(status === 200 ? 'OK' : 'Daily report failed');
   };
 }
