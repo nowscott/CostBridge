@@ -260,3 +260,38 @@ test('terminal and malformed model failures are recorded once', async () => {
   assert.equal(attempts[0].willFallback,false);
  }
 });
+
+
+test('records safe Groq 429 diagnostics and continues to the fallback', async () => {
+ const attempts = [];
+ let calls = 0;
+ const result = await analyze(input, {...config, providers:[provider(), fallbackProvider()]}, async () => {
+  if (++calls === 1) return new Response(JSON.stringify({error:{message:'Rate limit reached (TPD): Limit 100000, Used 99000, Requested 2000. private input'}}), {status:429, headers:{'retry-after':'42'}});
+  return fake(transaction)();
+ }, () => {}, attempt => attempts.push(attempt));
+ assert.equal(result.provider, 'qwen');
+ assert.deepEqual(attempts[0].rateLimit, {retryAfterSeconds:42, dimension:'TPD', limit:100000, used:99000, requested:2000});
+ assert.doesNotMatch(JSON.stringify(attempts), /private input/);
+});
+
+test('falls back when Groq 429 diagnostics are malformed', async () => {
+ const attempts = [];
+ let calls = 0;
+ const result = await analyze(input, {...config, providers:[provider(), fallbackProvider()]}, async () => {
+  if (++calls === 1) return new Response('not json', {status:429});
+  return fake(transaction)();
+ }, () => {}, attempt => attempts.push(attempt));
+ assert.equal(result.provider, 'qwen');
+ assert.deepEqual(attempts[0].rateLimit, {});
+});
+
+test('does not wait indefinitely for a Groq 429 response body', async () => {
+ let calls = 0;
+ const start = Date.now();
+ const result = await analyze(input, {...config, providers:[provider(), fallbackProvider()]}, async () => {
+  if (++calls === 1) return new Response(new ReadableStream({pull() { return new Promise(() => {}); }}), {status:429});
+  return fake(transaction)();
+ });
+ assert.equal(result.provider, 'qwen');
+ assert.ok(Date.now() - start < 3000);
+});
