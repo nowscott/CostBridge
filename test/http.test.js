@@ -249,7 +249,7 @@ test('daily endpoint orders configured backups after each preferred provider', a
  const originalFetch = globalThis.fetch;
  names.forEach(name => { process.env[name] = 'test'; });
  const body = {text:'午餐',expenseCategories:['餐饮'],incomeCategories:['工资'],accounts:['卡'],defaultAccount:'卡'};
- const orders = {groq:['groq','qwen','sf'],qwen:['qwen','groq','sf'],sf:['sf','groq','qwen']};
+ const orders = {groq:['groq','sf','qwen'],qwen:['qwen','groq','sf'],sf:['sf','groq','qwen']};
  let calls = [], cancelled = 0;
  globalThis.fetch = async url => {
   if (url.includes('unkey')) return {ok:true,json:async()=>({data:{valid:true}})};
