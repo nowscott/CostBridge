@@ -32,7 +32,9 @@ export async function analyze(body, config, fetcher = fetch, onRateLimits = () =
           if (rateLimits && Object.values(rateLimits).some(value => value !== null)) onRateLimits(rateLimits, new Date().toISOString(), provider.model);
         }
         if (!response.ok) {
-          await response.body?.cancel();
+          if (provider.key === 'groq' && response.status === 429) {
+            attempt.rateLimit = await readGroqLimit(response);
+          } else await response.body?.cancel();
           return response;
         }
         try { payload = await response.json(); }
@@ -85,4 +87,45 @@ function parseModelContent(payload) {
   const text = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   try { return JSON.parse(text); }
   catch { throw new AppError('model_invalid', '模型返回内容无法识别。', 502); }
+}
+
+// Store only known rate-limit fields, never the upstream message itself.
+async function readGroqLimit(response) {
+  const result = {};
+  const retry = response.headers?.get('retry-after');
+  if (retry && /^\d+(?:\.\d+)?$/.test(retry)) result.retryAfterSeconds = Number(retry);
+  if (!response.body?.getReader) return result;
+  const reader = response.body.getReader();
+  let timer;
+  try {
+    const readBody = async () => {
+      let text = '', size = 0;
+      const decoder = new TextDecoder();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) return text + decoder.decode();
+        size += value.length;
+        if (size > 8192) return null;
+        text += decoder.decode(value, {stream:true});
+      }
+    };
+    const body = await Promise.race([readBody(), new Promise(resolve => { timer = setTimeout(() => resolve(null), 1000); })]);
+    if (body) {
+      const message = JSON.parse(body).error?.message;
+      if (typeof message === 'string') {
+        const dimension = message.match(/\b(RPM|RPD|TPM|TPD|ITPM|OTPM)\b/i)?.[1]?.toUpperCase();
+        if (dimension) result.dimension = dimension;
+        for (const [key, label] of [['limit', 'Limit'], ['used', 'Used'], ['requested', 'Requested']]) {
+          const value = message.match(new RegExp(`\\b${label}\\s*[: ]\\s*(\\d+(?:\\.\\d+)?)`, 'i'))?.[1];
+          if (value) result[key] = Number(value);
+        }
+      }
+    }
+  } catch {
+    // A missing or malformed diagnostic must not prevent fallback.
+  } finally {
+    clearTimeout(timer);
+    void reader.cancel().catch(() => {});
+  }
+  return result;
 }
