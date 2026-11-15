@@ -10,7 +10,7 @@ function providerConfig(key) {
 }
 
 function defaultProviders(preferred) {
-  return [preferred, ...Object.keys(PROVIDERS).filter(key => key !== preferred && process.env[PROVIDERS[key].apiKeyEnv])].map(providerConfig);
+  return [preferred, ...['groq', 'sf', 'qwen'].filter(key => key !== preferred && process.env[PROVIDERS[key].apiKeyEnv])].map(providerConfig);
 }
 
 function providerParam(req, body) {
